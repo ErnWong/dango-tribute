@@ -5,8 +5,11 @@ authors = ["Ernest Wong <sudo@ernestwong.nz>"]
 edition = "2018"
 
 [dependencies]
-bevy = "0.4"
 bevy_rapier2d = "0.7.0"
 bevy_prototype_lyon = { git = "https://github.com/davidB/bevy_prototype_lyon", branch = "bevy_0.4" }
 # bevy_prototype_lyon = "0.1.3"
 rand = "0.8.0"
+
+[dependencies.bevy]
+version = "0.4"
+features = ["dynamic"]
