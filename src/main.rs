@@ -44,7 +44,7 @@ fn main() {
         .add_plugin(bevy::gltf::GltfPlugin::default())
         .add_plugin(bevy::winit::WinitPlugin::default())
         .add_plugin(bevy::wgpu::WgpuPlugin::default())
-        .add_plugin(ReshadePlugin {})
+        .add_plugin(ReshadePlugin)
         .add_plugin(RapierPhysicsPlugin)
         .add_plugin(DangoLand)
         .run();

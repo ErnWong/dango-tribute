@@ -26,7 +26,7 @@ use std::borrow::Cow;
 
 use super::window_random_texture_node::WindowRandomTextureNode;
 
-pub struct ReshadePlugin {}
+pub struct ReshadePlugin;
 
 impl Plugin for ReshadePlugin {
     fn build(&self, app: &mut AppBuilder) {
