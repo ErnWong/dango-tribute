@@ -5,13 +5,17 @@ use bevy::{
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::{
     na::Vector2,
-    physics::{RapierConfiguration, RapierPhysicsPlugin, RigidBodyHandleComponent},
-    rapier::dynamics::{RigidBodyBuilder, RigidBodySet},
+    physics::{RapierConfiguration, RapierPhysicsPlugin},
+    rapier::dynamics::RigidBodyBuilder,
     rapier::geometry::ColliderBuilder,
 };
 
+mod controlled_dango;
 mod reshade;
 mod window_random_texture_node;
+
+use controlled_dango::{controlled_dango_system, ControlledDangoComponent};
+use reshade::ReshadePlugin;
 
 fn main() {
     App::build()
@@ -40,7 +44,7 @@ fn main() {
         .add_plugin(bevy::gltf::GltfPlugin::default())
         .add_plugin(bevy::winit::WinitPlugin::default())
         .add_plugin(bevy::wgpu::WgpuPlugin::default())
-        .add_plugin(reshade::ReshadePlugin {})
+        .add_plugin(ReshadePlugin {})
         .add_plugin(RapierPhysicsPlugin)
         .add_plugin(DangoLand)
         .run();
@@ -51,7 +55,7 @@ pub struct DangoLand;
 impl Plugin for DangoLand {
     fn build(&self, app: &mut AppBuilder) {
         app.add_startup_system(setup.system())
-            .add_system(control_dango.system());
+            .add_system(controlled_dango_system.system());
     }
 }
 
@@ -127,33 +131,4 @@ fn setup(
         )
         .with(ColliderBuilder::ball(40.0))
         .with(ControlledDangoComponent {});
-}
-
-pub struct ControlledDangoComponent {}
-
-pub fn control_dango(
-    input: Res<Input<KeyCode>>,
-    mut bodies: ResMut<RigidBodySet>,
-    query: Query<(&ControlledDangoComponent, &RigidBodyHandleComponent)>,
-) {
-    for (_, body_handle) in &mut query.iter() {
-        let body = bodies.get_mut(body_handle.handle()).unwrap();
-        let horizontal_movement = ((input.pressed(KeyCode::D) || input.pressed(KeyCode::Right))
-            as i32
-            - (input.pressed(KeyCode::A) || input.pressed(KeyCode::Left)) as i32)
-            as f32;
-        body.set_linvel(
-            body.linvel() + Vector2::new(horizontal_movement * 10.0, 0.0),
-            true,
-        );
-        if input.just_pressed(KeyCode::W)
-            || input.just_pressed(KeyCode::Space)
-            || input.just_pressed(KeyCode::Up)
-        {
-            body.set_linvel(
-                body.linvel().component_mul(&Vector2::x()) + Vector2::new(0.0, 200.0),
-                true,
-            );
-        }
-    }
 }
