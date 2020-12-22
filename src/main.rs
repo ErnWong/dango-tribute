@@ -19,7 +19,7 @@ use controlled_dango::{controlled_dango_system, ControlledDangoComponent};
 use physics::{BlobPhysicsComponent, PhysicsPlugin};
 use reshade::ReshadePlugin;
 
-pub const GRAVITY: f32 = -9.81 * 1.0;
+pub const GRAVITY: f32 = -9.81 * 1.5;
 pub type RealField = f32;
 
 fn main() {
