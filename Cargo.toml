@@ -11,6 +11,9 @@ bevy_prototype_lyon = { git = "https://github.com/davidB/bevy_prototype_lyon", b
 rand = "0.8.0"
 nphysics2d = "0.18"
 # ncollide2d = "0.26.1"
+lyon = "0.16.2"
+num = "0.3.1"
+splines = "3.5.1"
 
 [dependencies.bevy]
 version = "0.4"
