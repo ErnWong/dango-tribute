@@ -11,12 +11,14 @@ use nphysics2d::{
 };
 
 mod controlled_dango;
+mod dango;
 mod physics;
 mod reshade;
 mod window_random_texture_node;
 
 use controlled_dango::{controlled_dango_system, ControlledDangoComponent};
-use physics::{BlobPhysicsComponent, PhysicsPlugin};
+use dango::{BlobPhysicsComponent, DangoPlugin};
+use physics::PhysicsPlugin;
 use reshade::ReshadePlugin;
 
 pub const GRAVITY: f32 = -9.81 * 1.5;
@@ -53,6 +55,7 @@ fn main() {
         .add_plugin(PrintDiagnosticsPlugin::default())
         .add_plugin(ReshadePlugin)
         .add_plugin(PhysicsPlugin::new(Vector2::new(0.0, GRAVITY)))
+        .add_plugin(DangoPlugin)
         .add_plugin(DangoLand)
         .run();
 }
