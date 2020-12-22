@@ -2,14 +2,9 @@ use bevy::{
     prelude::*,
     render::mesh::{Indices, VertexAttributeValues},
 };
-use bevy_rapier2d::{
-    physics::{RigidBodyHandleComponent, TRANSFORM_SYNC_STAGE},
-    rapier::dynamics::RigidBodySet,
-};
-// use lyon::tesselation::basic_shapes::*;
 use lyon::{
     math::point,
-    path::{builder::*, Path},
+    path::Path,
     tessellation::{
         basic_shapes::fill_circle, BuffersBuilder, FillAttributes, FillOptions, FillTessellator,
         VertexBuffers,
@@ -31,19 +26,17 @@ use splines::{Interpolation, Key, Spline};
 
 use num::NumCast;
 
-pub const RAPIER_TO_NPHYSICS_SYNC_STAGE: &'static str = "rapier_to_nphysics_sync_stage";
-pub const NPHYSICS_STEP_STAGE: &'static str = "nphysics_step_stage";
 pub const NPHYSICS_TRANSFORM_SYNC_STAGE: &'static str = "nphysics_transform_sync_stage";
 
 use super::RealField;
 
-pub struct NPhysicsPlugin {
+pub struct PhysicsPlugin {
     gravity: Vector2<RealField>,
 }
 
-impl NPhysicsPlugin {
-    pub fn new(gravity: Vector2<RealField>) -> NPhysicsPlugin {
-        NPhysicsPlugin { gravity }
+impl PhysicsPlugin {
+    pub fn new(gravity: Vector2<RealField>) -> PhysicsPlugin {
+        PhysicsPlugin { gravity }
     }
 }
 
@@ -61,7 +54,7 @@ impl BlobPhysicsComponent {
     }
 }
 
-impl Plugin for NPhysicsPlugin {
+impl Plugin for PhysicsPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.add_resource(DefaultMechanicalWorld::<RealField>::new(self.gravity))
             .add_resource(DefaultGeometricalWorld::<RealField>::new())
@@ -71,23 +64,9 @@ impl Plugin for NPhysicsPlugin {
             .add_resource(DefaultForceGeneratorSet::<RealField>::new())
             .add_resource(SimulationToRenderTime::default())
             .add_system_to_stage(stage::PRE_UPDATE, create_body_and_collider_system.system())
-            .add_stage_after(
-                TRANSFORM_SYNC_STAGE,
-                RAPIER_TO_NPHYSICS_SYNC_STAGE,
-                SystemStage::parallel(),
-            )
-            .add_system_to_stage(
-                RAPIER_TO_NPHYSICS_SYNC_STAGE,
-                sync_rapier_to_nphysics_system.system(),
-            )
-            .add_stage_after(
-                RAPIER_TO_NPHYSICS_SYNC_STAGE,
-                NPHYSICS_STEP_STAGE,
-                SystemStage::parallel(),
-            )
-            .add_system_to_stage(NPHYSICS_STEP_STAGE, step_system.system())
-            .add_stage_after(
-                NPHYSICS_STEP_STAGE,
+            .add_system_to_stage(stage::UPDATE, step_system.system())
+            .add_stage_before(
+                stage::POST_UPDATE,
                 NPHYSICS_TRANSFORM_SYNC_STAGE,
                 SystemStage::parallel(),
             )
@@ -98,28 +77,28 @@ impl Plugin for NPhysicsPlugin {
     }
 }
 
-pub struct NPBodyHandleComponent(DefaultBodyHandle);
-pub struct NPColliderHandleComponent(DefaultColliderHandle);
+pub struct NPhysicsBodyHandleComponent(DefaultBodyHandle);
+pub struct NPhysicsColliderHandleComponent(DefaultColliderHandle);
 
-impl From<DefaultBodyHandle> for NPBodyHandleComponent {
+impl From<DefaultBodyHandle> for NPhysicsBodyHandleComponent {
     fn from(handle: DefaultBodyHandle) -> Self {
         Self(handle)
     }
 }
 
-impl NPBodyHandleComponent {
+impl NPhysicsBodyHandleComponent {
     pub fn handle(&self) -> DefaultBodyHandle {
         self.0
     }
 }
 
-impl From<DefaultColliderHandle> for NPColliderHandleComponent {
+impl From<DefaultColliderHandle> for NPhysicsColliderHandleComponent {
     fn from(handle: DefaultColliderHandle) -> Self {
         Self(handle)
     }
 }
 
-impl NPColliderHandleComponent {
+impl NPhysicsColliderHandleComponent {
     pub fn handle(&self) -> DefaultColliderHandle {
         self.0
     }
@@ -127,32 +106,31 @@ impl NPColliderHandleComponent {
 
 pub fn create_body_and_collider_system(
     commands: &mut Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
+    meshes: Res<Assets<Mesh>>,
     mut bodies: ResMut<DefaultBodySet<RealField>>,
     mut colliders: ResMut<DefaultColliderSet<RealField>>,
     rigid_body_query: Query<(Entity, &RigidBodyDesc<RealField>, &ColliderDesc<RealField>)>,
     fem_surface_query: Query<
         (Entity, &BlobPhysicsComponent, &Handle<Mesh>),
-        Without<NPBodyHandleComponent>,
+        Without<NPhysicsBodyHandleComponent>,
     >,
 ) {
     for (entity, body_desc, collider_desc) in rigid_body_query.iter() {
-        info!("Found new rigid body");
         let body_handle = bodies.insert(body_desc.build());
-        commands.insert_one(entity, NPBodyHandleComponent::from(body_handle));
+        commands.insert_one(entity, NPhysicsBodyHandleComponent::from(body_handle));
         commands.remove_one::<RigidBodyDesc<RealField>>(entity);
 
         let collider_handle = colliders.insert(collider_desc.build(BodyPartHandle(body_handle, 0)));
-        commands.insert_one(entity, NPColliderHandleComponent::from(collider_handle));
+        commands.insert_one(
+            entity,
+            NPhysicsColliderHandleComponent::from(collider_handle),
+        );
         commands.remove_one::<ColliderDesc<RealField>>(entity);
     }
 
     for (entity, blob, mesh_handle) in fem_surface_query.iter() {
-        info!("Found new FEM surface");
         let mut mesh_vertices: Vec<Point2<RealField>> = vec![];
         let mut mesh_indices: Vec<Point3<usize>> = vec![];
-        let hexagon_vertices = VertexAttributeValues::Float3(HEXAGON_VERTICES.into());
-        let hexagon_indices = Indices::U32(HEXAGON_INDICES.into());
         let mut circle_geometry: VertexBuffers<[f32; 3], u32> = VertexBuffers::new();
         fill_circle(
             lyon::math::Point::zero(),
@@ -163,8 +141,6 @@ pub fn create_body_and_collider_system(
             }),
         )
         .unwrap();
-        info!("Circle has {} vertices", circle_geometry.vertices.len());
-        info!("- geometry: {:?}", circle_geometry);
         let circle_vertices = VertexAttributeValues::Float3(circle_geometry.vertices.into());
         let circle_indices = Indices::U32(circle_geometry.indices.into());
         let (desired_vertices, desired_indices) = if USE_EXISTING_MESH {
@@ -174,13 +150,6 @@ pub fn create_body_and_collider_system(
                 mesh.indices().unwrap(),
             )
         } else {
-            // let mesh = meshes.get_mut(mesh_handle).unwrap();
-            // mesh.set_indices(Some(Indices::U32(HEXAGON_INDICES.into())));
-            // mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, hexagon_vertices.clone());
-            // mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0; 3]; HEXAGON_VERTICES.len()]);
-            // mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0; 2]; HEXAGON_VERTICES.len()]);
-
-            //(&hexagon_vertices, &hexagon_indices)
             (&circle_vertices, &circle_indices)
         };
         fn convert_indices<SourceType: NumCast + Copy>(
@@ -206,74 +175,19 @@ pub fn create_body_and_collider_system(
         }
         let mut fem_surface = FEMSurfaceDesc::<RealField>::new(&mesh_vertices, &mesh_indices)
             .translation(Vector2::new(blob.x, blob.y))
-            //.scale(Vector2::new(20.0, 20.0))
-            //.young_modulus(4.0e2)
             .young_modulus(1.0e2)
             .mass_damping(0.2)
             .build();
         let collider_desc = fem_surface.boundary_collider_desc();
         let body_handle = bodies.insert(fem_surface);
         let collider_handle = colliders.insert(collider_desc.build(body_handle));
-        commands.insert_one(entity, NPBodyHandleComponent::from(body_handle));
-        commands.insert_one(entity, NPColliderHandleComponent::from(collider_handle));
+        commands.insert_one(entity, NPhysicsBodyHandleComponent::from(body_handle));
+        commands.insert_one(
+            entity,
+            NPhysicsColliderHandleComponent::from(collider_handle),
+        );
     }
 }
-
-pub fn sync_rapier_to_nphysics_system(
-    mut nphysics_bodies: ResMut<DefaultBodySet<RealField>>,
-    rapier_bodies: Res<RigidBodySet>,
-    query: Query<(&NPBodyHandleComponent, &RigidBodyHandleComponent)>,
-) {
-    for (nphysics_body_handle, rapier_body_handle) in query.iter() {
-        // Let nphysics know that it doesn't have control of this body.
-        if let Some(nphysics_body) = nphysics_bodies.get_mut(nphysics_body_handle.handle()) {
-            nphysics_body.set_status(BodyStatus::Kinematic);
-        }
-
-        // Copy over the transform updates from rapier to nphysics.
-        if let Some(nphysics_rigid_body) =
-            nphysics_bodies.rigid_body_mut(nphysics_body_handle.handle())
-        {
-            if let Some(rapier_body) = rapier_bodies.get(rapier_body_handle.handle()) {
-                nphysics_rigid_body.set_position(rapier_body.position().clone());
-                nphysics_rigid_body.set_linear_velocity(rapier_body.linvel().clone());
-                nphysics_rigid_body.set_angular_velocity(rapier_body.angvel());
-            }
-        }
-    }
-}
-
-// /// A component to store the previous position of a body to use for
-// /// interpolation between steps
-// pub struct PhysicsInterpolationComponent(pub Option<Isometry<f32>>);
-//
-// impl Default for PhysicsInterpolationComponent {
-//     fn default() -> Self {
-//         PhysicsInterpolationComponent(None)
-//     }
-// }
-//
-// impl PhysicsInterpolationComponent {
-//     /// Create a new PhysicsInterpolationComponent from a translation and rotation
-//     #[cfg(feature = "dim2")]
-//     pub fn new(translation: Vec2, rotation_angle: f32) -> Self {
-//         Self(Some(Isometry::from_parts(
-//             Translation::from(Vector::new(translation.x, translation.y)),
-//             UnitComplex::new(rotation_angle),
-//         )))
-//     }
-//
-//     /// Create a new PhysicsInterpolationComponent from a translation and rotation
-//     #[cfg(feature = "dim3")]
-//     pub fn new(translation: Vec3, rotation: Quat) -> Self {
-//         Self(Some(Isometry::from_parts(
-//             Translation::from(Vector::new(translation.x, translation.y, translation.z)),
-//             UnitQuaternion::from_quaternion(Quaternion::new(
-//                 rotation.x, rotation.y, rotation.z, rotation.w,
-//             )),
-//         )))
-//     }
-// }
 
 /// Difference between simulation and rendering time
 #[derive(Default)]
@@ -306,29 +220,12 @@ pub fn step_system(
     }
 }
 
-// pub fn step_system(
-//     mut mechanical_world: ResMut<DefaultMechanicalWorld<RealField>>,
-//     mut geometrical_world: ResMut<DefaultGeometricalWorld<RealField>>,
-//     mut bodies: ResMut<DefaultBodySet<RealField>>,
-//     mut colliders: ResMut<DefaultColliderSet<RealField>>,
-//     mut joint_constraints: ResMut<DefaultJointConstraintSet<RealField>>,
-//     mut force_generators: ResMut<DefaultForceGeneratorSet<RealField>>,
-// ) {
-//     mechanical_world.step(
-//         &mut *geometrical_world,
-//         &mut *bodies,
-//         &mut *colliders,
-//         &mut *joint_constraints,
-//         &mut *force_generators,
-//     );
-// }
-
 pub fn sync_transform_system(
     bodies: Res<DefaultBodySet<RealField>>,
     colliders: Res<DefaultColliderSet<RealField>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut transform_query: Query<(&NPBodyHandleComponent, &mut Transform)>,
-    mesh_query: Query<(&NPColliderHandleComponent, &Handle<Mesh>)>,
+    mut transform_query: Query<(&NPhysicsBodyHandleComponent, &mut Transform)>,
+    mesh_query: Query<(&NPhysicsColliderHandleComponent, &Handle<Mesh>)>,
 ) {
     for (body_handle, mut transform) in transform_query.iter_mut() {
         if let Some(body) = bodies.get(body_handle.handle()) {
@@ -412,66 +309,6 @@ pub fn sync_transform_system(
                 mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0; 3]; vertex_count]);
                 mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0; 2]; vertex_count]);
             }
-            // if let Some((_, deformed_positions)) = body.deformed_positions() {
-            //     let mesh = meshes.get_mut(mesh_handle).unwrap();
-
-            //     let mut positions: Vec<[f32; 3]> = Vec::new();
-            //     for i in 0..(deformed_positions.len() / 2) {
-            //         positions.push([deformed_positions[i], deformed_positions[i + 1], 0.0]);
-            //     }
-            //     info!("{:?}", positions);
-
-            //     mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-            // }
         }
     }
 }
-// const HEXAGON_VERTICES: [[f32; 3]; 3] = [[0.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0]];
-// const HEXAGON_INDICES: [u32; 3] = [1, 0, 2];
-//const QUAD_VERTICES: [[f32; 3]; 8] = [
-//    [0.0, 0.0, 0.0],
-//    [0.0, 1.0, 0.0],
-//    [1.0, 0.0, 0.0],
-//    [1.0, 1.0, 0.0],
-//    [2.0, 0.0, 0.0],
-//    [2.0, 1.0, 0.0],
-//    [3.0, 0.0, 0.0],
-//    [3.0, 1.0, 0.0],
-//];
-//const QUAD_INDICES: [u32; 18] = [
-//    0 + 1,
-//    0 + 0,
-//    0 + 2,
-//    0 + 1,
-//    0 + 2,
-//    0 + 3,
-//    2 + 1,
-//    2 + 0,
-//    2 + 2,
-//    2 + 1,
-//    2 + 2,
-//    2 + 3,
-//    4 + 1,
-//    4 + 0,
-//    4 + 2,
-//    4 + 1,
-//    4 + 2,
-//    4 + 3,
-//];
-const HEXAGON_VERTICES: [[f32; 3]; 7] = [
-    [-1.0, 1.0, 0.0],  // 0 top left
-    [1.0, 1.0, 0.0],   // 1 top right
-    [-2.0, 0.0, 0.0],  // 2 left
-    [0.0, 0.0, 0.0],   // 3 mid
-    [2.0, 0.0, 0.0],   // 4 right
-    [-1.0, -1.0, 0.0], // 5 bottom left
-    [1.0, -1.0, 0.0],  // 6 bottom right
-];
-const HEXAGON_INDICES: [u32; 18] = [
-    0, 3, 1, // top
-    0, 2, 3, // top left
-    1, 3, 4, // top right
-    2, 5, 3, // bottom left
-    6, 4, 3, // bottom right
-    5, 6, 3, // bottom
-];
