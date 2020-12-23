@@ -62,6 +62,9 @@ fn main() {
     if cfg!(feature = "debug-fly-camera") {
         app.add_plugin(FlyCameraPlugin);
     }
+
+    #[cfg(target_arch = "wasm32")]
+    app.add_plugin(bevy_webgl2::WebGL2Plugin);
     app.run();
 }
 
