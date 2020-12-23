@@ -46,18 +46,21 @@ pub struct ControlledDangoForceGenerator {
 pub struct ControlledDangoConfig {
     #[inspectable(min = 0.0, max = 100.0)]
     variable_jump_force_initial: RealField,
-    #[inspectable(min = 0.0, max = 100.0)]
+    #[inspectable(min = 0.0, max = 1000.0)]
     variable_jump_force_decay: RealField,
     #[inspectable(min = 0.0, max = 100.0)]
-    horizontal_movement_force: RealField,
+    horizontal_ground_movement_force: RealField,
+    #[inspectable(min = 0.0, max = 100.0)]
+    horizontal_air_movement_force: RealField,
 }
 
 impl Default for ControlledDangoConfig {
     fn default() -> Self {
         Self {
-            variable_jump_force_initial: 10.0,
-            variable_jump_force_decay: 10.0,
-            horizontal_movement_force: 10.0,
+            variable_jump_force_initial: 80.0,
+            variable_jump_force_decay: 600.0,
+            horizontal_ground_movement_force: 10.0,
+            horizontal_air_movement_force: 2.0,
         }
     }
 }
@@ -72,9 +75,12 @@ impl ControlledDangoComponent {
         } else {
             state.applying_force[1] = 0.0;
         }
-        // TODO: Change the horizontal force during midair.
         state.applying_force[0] = ((right as i32 as RealField) - (left as i32 as RealField))
-            * state.config.horizontal_movement_force;
+            * if in_air {
+                state.config.horizontal_air_movement_force
+            } else {
+                state.config.horizontal_ground_movement_force
+            };
     }
 }
 
