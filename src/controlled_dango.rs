@@ -25,18 +25,17 @@ pub fn controlled_dango_system(
                 0,
                 &Force::linear(Vector2::x() * horizontal_movement * 7.0),
                 ForceType::Force,
-                false,
+                true,
             );
             if input.just_pressed(KeyCode::W)
                 || input.just_pressed(KeyCode::Space)
                 || input.just_pressed(KeyCode::Up)
             {
-                info!("Jump - (this log is to troubleshoot unresponsive states)");
                 body.apply_force(
                     0,
                     &Force::linear(Vector2::y() * 7.0),
                     ForceType::Impulse,
-                    false,
+                    true,
                 );
             }
         }
