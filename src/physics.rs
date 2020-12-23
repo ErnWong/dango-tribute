@@ -2,7 +2,6 @@ use bevy::prelude::*;
 use nphysics2d::{
     force_generator::DefaultForceGeneratorSet,
     joint::DefaultJointConstraintSet,
-    math::Inertia,
     nalgebra::{Point2, Vector2},
     object::{
         BodyPartHandle, ColliderDesc, DefaultBodyHandle, DefaultBodySet, DefaultColliderHandle,
