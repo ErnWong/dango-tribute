@@ -4,6 +4,10 @@ version = "0.1.0"
 authors = ["Ernest Wong <sudo@ernestwong.nz>"]
 edition = "2018"
 
+[features]
+inspect-control-config = []
+debug-fly-camera = []
+
 [dependencies]
 bevy_prototype_lyon = { git = "https://github.com/davidB/bevy_prototype_lyon", branch = "bevy_0.4" }
 # bevy_prototype_lyon = "0.1.3"

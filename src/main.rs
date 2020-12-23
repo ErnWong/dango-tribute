@@ -26,8 +26,8 @@ pub const GRAVITY: f32 = -9.81 * 1.5;
 pub type RealField = f32;
 
 fn main() {
-    App::build()
-        .add_resource(ClearColor(Color::WHITE))
+    let mut app = App::build();
+    app.add_resource(ClearColor(Color::WHITE))
         .add_plugin(bevy::log::LogPlugin::default())
         .add_plugin(bevy::reflect::ReflectPlugin::default())
         .add_plugin(bevy::core::CorePlugin::default())
@@ -54,13 +54,15 @@ fn main() {
         .add_plugin(bevy::wgpu::WgpuPlugin::default())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(PrintDiagnosticsPlugin::default())
-        //.add_plugin(FlyCameraPlugin)
         .add_plugin(ReshadePlugin)
         .add_plugin(PhysicsPlugin::new(Vector2::new(0.0, GRAVITY)))
         .add_plugin(DangoPlugin)
         .add_plugin(ControlledDangoPlugin)
-        .add_startup_system(setup.system())
-        .run();
+        .add_startup_system(setup.system());
+    if cfg!(feature = "debug-fly-camera") {
+        app.add_plugin(FlyCameraPlugin);
+    }
+    app.run();
 }
 
 fn setup(
