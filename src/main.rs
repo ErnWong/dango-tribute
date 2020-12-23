@@ -17,7 +17,7 @@ mod reshade;
 mod window_random_texture_node;
 
 use controlled_dango::{controlled_dango_system, ControlledDangoComponent};
-use dango::{BlobPhysicsComponent, DangoPlugin};
+use dango::{colors::*, DangoDescriptorComponent, DangoPlugin};
 use physics::PhysicsPlugin;
 use reshade::ReshadePlugin;
 
@@ -77,10 +77,8 @@ fn setup_nphysics(
 ) {
     asset_server.watch_for_changes().unwrap();
 
-    let yellow = materials.add(Color::rgb(0.8672, 0.8438, 0.7266).into());
-    let green = materials.add(Color::rgb(0.7813, 0.8673, 0.7656).into());
-    let red = materials.add(Color::rgb(0.9023, 0.8400, 0.8400).into());
-    let material_ball = materials.add(Color::rgb(0.8, 0.6, 0.0).into());
+    let yellow = materials.add(DANGO_YELLOW.into());
+    let green = materials.add(DANGO_GREEN.into());
 
     commands
         .spawn(Camera2dBundle {
@@ -127,21 +125,17 @@ fn setup_nphysics(
             ColliderDesc::<RealField>::new(ShapeHandle::new(Cuboid::new(Vector2::new(5.0, 0.15))))
                 .translation(Vector2::new(5.0, 0.15)),
         )
-        .spawn(primitive(
-            red.clone(),
-            &mut meshes,
-            ShapeType::Circle(0.8),
-            TessellationMode::Fill(&FillOptions::default()),
-            Vec3::zero().into(),
-        ))
-        .with(BlobPhysicsComponent::new(0.0, 0.0, 0.8))
-        .spawn(primitive(
-            material_ball.clone(),
-            &mut meshes,
-            ShapeType::Circle(0.8),
-            TessellationMode::Fill(&FillOptions::default()),
-            Vec3::zero().into(),
-        ))
-        .with(BlobPhysicsComponent::new(2.0, 0.0, 0.5))
+        .spawn((DangoDescriptorComponent {
+            x: 0.0,
+            y: 0.0,
+            size: 0.8,
+            color: DANGO_RED,
+        },))
+        .spawn((DangoDescriptorComponent {
+            x: 2.0,
+            y: 0.0,
+            size: 0.5,
+            color: DANGO_GREEN,
+        },))
         .with(ControlledDangoComponent {});
 }

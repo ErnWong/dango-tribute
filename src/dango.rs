@@ -1,4 +1,12 @@
-use bevy::{prelude::*, render::mesh::Indices};
+use bevy::{
+    prelude::*,
+    render::mesh::Indices,
+    render::{
+        pipeline::{PrimitiveTopology, RenderPipeline},
+        render_graph::base::MainPass,
+    },
+    sprite::SPRITE_PIPELINE_HANDLE,
+};
 use lyon::{
     math::point,
     path::Path,
@@ -23,11 +31,8 @@ pub struct DangoPlugin;
 
 impl Plugin for DangoPlugin {
     fn build(&self, app: &mut AppBuilder) {
-        app.add_resource(BlobNPhysicsMesh::default())
-            .add_system_to_stage(
-                stage::PRE_UPDATE,
-                create_dango_body_and_collider_system.system(),
-            )
+        app.add_resource(DangoPhysicsMesh::default())
+            .add_system_to_stage(stage::PRE_UPDATE, create_dango_system.system())
             .add_system_to_stage(
                 NPHYSICS_TRANSFORM_SYNC_STAGE,
                 sync_dango_physics_system.system(),
@@ -35,25 +40,43 @@ impl Plugin for DangoPlugin {
     }
 }
 
-pub struct BlobPhysicsComponent {
-    x: f32,
-    y: f32,
-    r: f32,
+pub mod colors {
+    use bevy::prelude::*;
+    pub const DANGO_YELLOW: Color = Color::rgb_linear(0.8672, 0.8438, 0.7266);
+    pub const DANGO_GREEN: Color = Color::rgb_linear(0.7813, 0.8673, 0.7656);
+    pub const DANGO_RED: Color = Color::rgb_linear(0.9023, 0.8400, 0.8400);
 }
 
-impl BlobPhysicsComponent {
-    pub fn new(x: f32, y: f32, r: f32) -> BlobPhysicsComponent {
-        BlobPhysicsComponent { x, y, r }
-    }
+#[derive(Bundle)]
+pub struct DangoBundle {
+    // TODO: Is sprite needed? Can we not use the spritesheet pipeline?
+    pub sprite: Sprite,
+    pub mesh: Handle<Mesh>,
+    pub material: Handle<ColorMaterial>,
+    pub main_pass: MainPass,
+    pub draw: Draw,
+    pub visible: Visible,
+    pub render_pipelines: RenderPipelines,
+    pub transform: Transform,
+    pub global_transform: GlobalTransform,
+    pub body: NPhysicsBodyHandleComponent,
+    pub collider: NPhysicsColliderHandleComponent,
 }
 
-pub struct BlobNPhysicsMesh {
+pub struct DangoDescriptorComponent {
+    pub x: f32,
+    pub y: f32,
+    pub size: f32,
+    pub color: Color,
+}
+
+pub struct DangoPhysicsMesh {
     vertices: Vec<Point2<RealField>>,
     indices: Vec<Point3<usize>>,
 }
 
-impl Default for BlobNPhysicsMesh {
-    fn default() -> BlobNPhysicsMesh {
+impl Default for DangoPhysicsMesh {
+    fn default() -> DangoPhysicsMesh {
         let mut geometry: VertexBuffers<Point2<RealField>, usize> = VertexBuffers::new();
         fill_circle(
             lyon::math::Point::zero(),
@@ -74,36 +97,64 @@ impl Default for BlobNPhysicsMesh {
                 geometry.indices[i + 2],
             ));
         }
-        BlobNPhysicsMesh {
+        DangoPhysicsMesh {
             vertices: geometry.vertices,
             indices: grouped_indices,
         }
     }
 }
 
-pub fn create_dango_body_and_collider_system(
+pub fn create_dango_system(
     commands: &mut Commands,
-    blob_mesh: Res<BlobNPhysicsMesh>,
+    physics_mesh: Res<DangoPhysicsMesh>,
     mut bodies: ResMut<DefaultBodySet<RealField>>,
     mut colliders: ResMut<DefaultColliderSet<RealField>>,
-    query: Query<(Entity, &BlobPhysicsComponent), Without<NPhysicsBodyHandleComponent>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    query: Query<(Entity, &DangoDescriptorComponent)>,
 ) {
-    for (entity, blob) in query.iter() {
+    for (entity, dango_descriptor) in query.iter() {
+        info!("Creating dango");
         let mut fem_surface =
-            FEMSurfaceDesc::<RealField>::new(&blob_mesh.vertices, &blob_mesh.indices)
-                .translation(Vector2::new(blob.x, blob.y))
-                .scale(Vector2::new(blob.r, blob.r))
+            FEMSurfaceDesc::<RealField>::new(&physics_mesh.vertices, &physics_mesh.indices)
+                .translation(Vector2::new(dango_descriptor.x, dango_descriptor.y))
+                .scale(Vector2::new(dango_descriptor.size, dango_descriptor.size))
                 .young_modulus(1.0e2)
                 .mass_damping(0.2)
                 .build();
         let collider_desc = fem_surface.boundary_collider_desc();
         let body_handle = bodies.insert(fem_surface);
         let collider_handle = colliders.insert(collider_desc.build(body_handle));
-        commands.insert_one(entity, NPhysicsBodyHandleComponent::from(body_handle));
-        commands.insert_one(
+        commands.insert(
             entity,
-            NPhysicsColliderHandleComponent::from(collider_handle),
+            DangoBundle {
+                sprite: Sprite {
+                    size: Vec2::one(),
+                    ..Default::default()
+                },
+                mesh: meshes.add(Mesh::new(PrimitiveTopology::TriangleList)),
+                material: materials.add(dango_descriptor.color.into()),
+                main_pass: MainPass,
+                draw: Default::default(),
+                visible: Visible {
+                    is_transparent: true,
+                    ..Default::default()
+                },
+                render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
+                    SPRITE_PIPELINE_HANDLE.typed(),
+                )]),
+                transform: Transform::default(),
+                // transform: Transform {
+                //     translation: Vec3::new(dango_descriptor.x, dango_descriptor.y, 0.0),
+                //     scale: Vec3::new(dango_descriptor.size, dango_descriptor.size, 1.0),
+                //     ..Default::default()
+                // },
+                global_transform: GlobalTransform::default(),
+                body: NPhysicsBodyHandleComponent::from(body_handle),
+                collider: NPhysicsColliderHandleComponent::from(collider_handle),
+            },
         );
+        commands.remove_one::<DangoDescriptorComponent>(entity);
     }
 }
 
