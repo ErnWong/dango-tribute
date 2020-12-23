@@ -160,16 +160,27 @@ pub fn create_dango_system(
         commands.remove_one::<DangoDescriptorComponent>(entity);
         commands.set_current_entity(entity);
         commands.with_children(|parent| {
-            parent.spawn(primitive(
-                materials.add(Color::RED.into()),
-                &mut meshes,
-                ShapeType::Rectangle {
-                    width: 0.1,
-                    height: 0.1,
-                },
-                TessellationMode::Fill(&FillOptions::default()),
-                Vec3::unit_z(), // Make it appear in front
-            ));
+            parent
+                .spawn(primitive(
+                    materials.add(Color::BLACK.into()),
+                    &mut meshes,
+                    ShapeType::Rectangle {
+                        width: 0.07,
+                        height: 0.4,
+                    },
+                    TessellationMode::Fill(&FillOptions::default()),
+                    Vec3::new(-0.1, 0.3, 1.0),
+                ))
+                .spawn(primitive(
+                    materials.add(Color::BLACK.into()),
+                    &mut meshes,
+                    ShapeType::Rectangle {
+                        width: 0.07,
+                        height: 0.4,
+                    },
+                    TessellationMode::Fill(&FillOptions::default()),
+                    Vec3::new(0.1, 0.3, 1.0),
+                ));
         });
     }
 }
