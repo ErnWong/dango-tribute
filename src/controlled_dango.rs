@@ -1,15 +1,16 @@
-use super::physics::NPhysicsBodyHandleComponent;
 use bevy::prelude::*;
 use bevy_contrib_inspector::{Inspectable, InspectorPlugin};
 use nphysics2d::{
     force_generator::{DefaultForceGeneratorSet, ForceGenerator},
     math::{Force, ForceType},
     nalgebra::Vector2,
-    object::{BodySet, DefaultBodyHandle},
+    object::{BodySet, DefaultBodyHandle, DefaultColliderSet},
     solver::IntegrationParameters,
+    world::DefaultGeometricalWorld,
 };
 use std::sync::{Arc, Mutex};
 
+use super::physics::{NPhysicsBodyHandleComponent, NPhysicsColliderHandleComponent};
 use super::RealField;
 
 pub struct ControlledDangoPlugin;
@@ -62,11 +63,10 @@ impl Default for ControlledDangoConfig {
 }
 
 impl ControlledDangoComponent {
-    pub fn update_controls(&mut self, left: bool, right: bool, jump: bool) {
-        // TODO: Don't jump in midair.
+    pub fn update_controls(&mut self, left: bool, right: bool, jump: bool, in_air: bool) {
         let mut state = self.state.as_ref().unwrap().lock().unwrap();
         if jump {
-            if state.applying_force[1] == 0.0 {
+            if state.applying_force[1] == 0.0 && !in_air {
                 state.applying_force[1] = state.config.variable_jump_force_initial;
             }
         } else {
@@ -105,10 +105,17 @@ impl ForceGenerator<RealField, DefaultBodyHandle> for ControlledDangoForceGenera
 
 pub fn controlled_dango_system(
     input: Res<Input<KeyCode>>,
+    colliders: Res<DefaultColliderSet<RealField>>,
+    geometrical_world: Res<DefaultGeometricalWorld<RealField>>,
     mut force_generators: ResMut<DefaultForceGeneratorSet<RealField>>,
-    mut query: Query<(&mut ControlledDangoComponent, &NPhysicsBodyHandleComponent)>,
+    mut query: Query<(
+        &mut ControlledDangoComponent,
+        &NPhysicsBodyHandleComponent,
+        &NPhysicsColliderHandleComponent,
+        &Transform,
+    )>,
 ) {
-    for (mut controlled_dango, body_handle) in query.iter_mut() {
+    for (mut controlled_dango, body_handle, collider_handle, transform) in query.iter_mut() {
         if controlled_dango.state.is_none() {
             let state = Arc::new(Mutex::new(ControlledDangoState::default()));
             controlled_dango.state = Some(state.clone());
@@ -123,10 +130,26 @@ pub fn controlled_dango_system(
             || input.pressed(KeyCode::Space)
             || input.pressed(KeyCode::Up);
 
+        let mut in_air = true;
+        if let Some(collider) = colliders.get(collider_handle.handle()) {
+            if collider.graph_index().is_some() {
+                for (_, _, _, _, _, manifold) in geometrical_world
+                    .contacts_with(&*colliders, collider_handle.handle(), true)
+                    .unwrap()
+                {
+                    for contact in manifold.contacts() {
+                        if contact.contact.world1[1] < transform.translation.y {
+                            in_air = false;
+                        }
+                    }
+                }
+            }
+        }
+
         // Note: We handle force application in a dedicated ForceGenerator because the physics
         // simulation could go through several integration steps between each time this system
         // is called.
-        controlled_dango.update_controls(left, right, jump);
+        controlled_dango.update_controls(left, right, jump, in_air);
     }
 }
 
