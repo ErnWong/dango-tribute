@@ -144,5 +144,5 @@ fn setup_nphysics(
             size: 0.5,
             color: DANGO_GREEN,
         },))
-        .with(ControlledDangoComponent {});
+        .with(ControlledDangoComponent::default());
 }
