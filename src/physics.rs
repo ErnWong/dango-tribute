@@ -76,7 +76,6 @@ impl NPhysicsColliderHandleComponent {
 
 pub fn create_body_and_collider_system(
     commands: &mut Commands,
-    meshes: Res<Assets<Mesh>>,
     mut bodies: ResMut<DefaultBodySet<RealField>>,
     mut colliders: ResMut<DefaultColliderSet<RealField>>,
     query: Query<(Entity, &RigidBodyDesc<RealField>, &ColliderDesc<RealField>)>,
