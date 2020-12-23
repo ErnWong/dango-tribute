@@ -59,12 +59,13 @@ fn main() {
         .add_plugin(DangoPlugin)
         .add_plugin(ControlledDangoPlugin)
         .add_startup_system(setup.system());
-    if cfg!(feature = "debug-fly-camera") {
-        app.add_plugin(FlyCameraPlugin);
-    }
 
     #[cfg(target_arch = "wasm32")]
     app.add_plugin(bevy_webgl2::WebGL2Plugin);
+
+    #[cfg(feature = "debug-fly-camera")]
+    app.add_plugin(FlyCameraPlugin);
+
     app.run();
 }
 

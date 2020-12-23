@@ -18,10 +18,10 @@ pub struct ControlledDangoPlugin;
 impl Plugin for ControlledDangoPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.add_system(controlled_dango_system.system());
-        if cfg!(feature = "inspect-control-config") {
-            app.add_plugin(InspectorPlugin::<ControlledDangoConfig>::new())
-                .add_system(update_config_system.system());
-        }
+
+        #[cfg(feature = "inspect-control-config")]
+        app.add_plugin(InspectorPlugin::<ControlledDangoConfig>::new())
+            .add_system(update_config_system.system());
     }
 }
 
