@@ -17,6 +17,9 @@ mod physics;
 mod reshade;
 mod window_random_texture_node;
 
+#[cfg(target_arch = "wasm32")]
+use bevy_webgl2;
+
 use controlled_dango::{ControlledDangoComponent, ControlledDangoPlugin};
 use dango::{colors::*, DangoDescriptorComponent, DangoPlugin};
 use physics::PhysicsPlugin;
@@ -60,9 +63,8 @@ fn main() {
         .add_plugin(ControlledDangoPlugin)
         .add_startup_system(setup.system());
 
-    if cfg!(target_arch = "wasm32") {
-        app.add_plugin(bevy_webgl2::WebGL2Plugin);
-    }
+    #[cfg(target_arch = "wasm32")]
+    app.add_plugin(bevy_webgl2::WebGL2Plugin);
 
     if cfg!(feature = "debug-fly-camera") {
         app.add_plugin(FlyCameraPlugin);
