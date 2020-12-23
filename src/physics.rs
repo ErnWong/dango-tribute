@@ -44,7 +44,8 @@ impl Plugin for PhysicsPlugin {
             .add_system_to_stage(
                 NPHYSICS_TRANSFORM_SYNC_STAGE,
                 sync_transform_system.system(),
-            );
+            )
+            .add_system_to_stage(NPHYSICS_TRANSFORM_SYNC_STAGE, log_body_system.system());
     }
 }
 
@@ -156,6 +157,29 @@ pub fn sync_transform_system(
             transform.translation.x = pos.x;
             transform.translation.y = pos.y;
             transform.rotation = Quat::from_rotation_z(angle);
+        }
+    }
+}
+
+pub struct LogBodyComponent;
+
+pub fn log_body_system(
+    bodies: Res<DefaultBodySet<RealField>>,
+    query: Query<(&NPhysicsBodyHandleComponent, &LogBodyComponent)>,
+) {
+    for (body_handle, _) in query.iter() {
+        if let Some(body) = bodies.get(body_handle.handle()) {
+            info!("=======================");
+            info!("Body with {} parts", body.num_parts());
+            for i in 0..body.num_parts() {
+                let part = body.part(i).unwrap();
+                info!(
+                    "Part {} angle: {} degrees",
+                    i,
+                    part.position().rotation.angle() / 3.14159265 * 180.0
+                );
+            }
+            info!("=======================");
         }
     }
 }
