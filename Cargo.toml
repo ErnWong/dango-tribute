@@ -12,6 +12,7 @@ nphysics2d = "0.18"
 lyon = "0.16.2"
 num = "0.3.1"
 splines = "3.5.1"
+bevy_fly_camera = "0.6.0"
 
 [dependencies.bevy]
 version = "0.4"

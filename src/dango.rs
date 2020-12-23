@@ -7,6 +7,10 @@ use bevy::{
     },
     sprite::SPRITE_PIPELINE_HANDLE,
 };
+use bevy_prototype_lyon::{
+    basic_shapes::{primitive, ShapeType},
+    TessellationMode,
+};
 use lyon::{
     math::point,
     path::Path,
@@ -143,31 +147,44 @@ pub fn create_dango_system(
                 render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
                     SPRITE_PIPELINE_HANDLE.typed(),
                 )]),
-                transform: Transform::default(),
-                // transform: Transform {
-                //     translation: Vec3::new(dango_descriptor.x, dango_descriptor.y, 0.0),
-                //     scale: Vec3::new(dango_descriptor.size, dango_descriptor.size, 1.0),
-                //     ..Default::default()
-                // },
+                transform: Transform {
+                    translation: Vec3::new(dango_descriptor.x, dango_descriptor.y, 0.0),
+                    scale: Vec3::new(dango_descriptor.size, dango_descriptor.size, 1.0),
+                    ..Default::default()
+                },
                 global_transform: GlobalTransform::default(),
                 body: NPhysicsBodyHandleComponent::from(body_handle),
                 collider: NPhysicsColliderHandleComponent::from(collider_handle),
             },
         );
         commands.remove_one::<DangoDescriptorComponent>(entity);
+        commands.set_current_entity(entity);
+        commands.with_children(|parent| {
+            parent.spawn(primitive(
+                materials.add(Color::RED.into()),
+                &mut meshes,
+                ShapeType::Rectangle {
+                    width: 0.1,
+                    height: 0.1,
+                },
+                TessellationMode::Fill(&FillOptions::default()),
+                Vec3::unit_z(), // Make it appear in front
+            ));
+        });
     }
 }
 
 pub fn sync_dango_physics_system(
     colliders: Res<DefaultColliderSet<RealField>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    query: Query<(&NPhysicsColliderHandleComponent, &Handle<Mesh>)>,
+    query: Query<(&NPhysicsColliderHandleComponent, &Handle<Mesh>, &Transform)>,
 ) {
-    for (collider_handle, mesh_handle) in query.iter() {
+    for (collider_handle, mesh_handle, transform) in query.iter() {
         if let Some(collider) = colliders.get(collider_handle.handle()) {
             if let Some(shape) = collider.shape().as_shape::<Polyline<RealField>>() {
                 let vertices = shape.points();
                 let edges = shape.edges();
+                let to_local_coords = transform.compute_matrix().inverse();
                 let mut x_keys = vec![];
                 let mut y_keys = vec![];
                 let mut previous = None;
@@ -177,8 +194,20 @@ pub fn sync_dango_physics_system(
                     for edge in edges.iter() {
                         let from_index = edge.indices[0];
                         let to_index = edge.indices[1];
-                        let from = vertices[from_index];
-                        let to = vertices[to_index];
+
+                        // Collision boundary is in world coordinates.
+                        // Convert to local coordinates.
+                        let from = to_local_coords.transform_point3(Vec3::new(
+                            vertices[from_index][0],
+                            vertices[from_index][1],
+                            0.0,
+                        ));
+                        let to = to_local_coords.transform_point3(Vec3::new(
+                            vertices[to_index][0],
+                            vertices[to_index][1],
+                            0.0,
+                        ));
+
                         let t = count as f32;
                         match previous {
                             None => {

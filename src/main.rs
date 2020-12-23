@@ -3,6 +3,7 @@ use bevy::{
     prelude::*,
     render::{pass::ClearColor, render_graph::base::BaseRenderGraphConfig},
 };
+use bevy_fly_camera::{FlyCamera, FlyCameraPlugin};
 use bevy_prototype_lyon::prelude::*;
 use nphysics2d::{
     nalgebra::Vector2,
@@ -53,6 +54,7 @@ fn main() {
         .add_plugin(bevy::wgpu::WgpuPlugin::default())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(PrintDiagnosticsPlugin::default())
+        //.add_plugin(FlyCameraPlugin)
         .add_plugin(ReshadePlugin)
         .add_plugin(PhysicsPlugin::new(Vector2::new(0.0, GRAVITY)))
         .add_plugin(DangoPlugin)
@@ -82,9 +84,14 @@ fn setup_nphysics(
 
     commands
         .spawn(Camera2dBundle {
-            transform: Transform::from_scale(Vec3::one() / 60.0),
+            transform: Transform {
+                scale: Vec3::one() / 60.0,
+                translation: Vec3::unit_z() * (1000.0 / 60.0 - 0.1),
+                rotation: Default::default(),
+            },
             ..Default::default()
         })
+        .with(FlyCamera::default())
         .spawn(primitive(
             yellow.clone(),
             &mut meshes,

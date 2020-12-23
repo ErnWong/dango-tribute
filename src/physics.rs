@@ -2,7 +2,8 @@ use bevy::prelude::*;
 use nphysics2d::{
     force_generator::DefaultForceGeneratorSet,
     joint::DefaultJointConstraintSet,
-    nalgebra::Vector2,
+    math::Inertia,
+    nalgebra::{Point2, Vector2},
     object::{
         BodyPartHandle, ColliderDesc, DefaultBodyHandle, DefaultBodySet, DefaultColliderHandle,
         DefaultColliderSet, RigidBodyDesc,
@@ -112,6 +113,7 @@ pub fn step_system(
 ) {
     sim_to_render_time.diff += time.delta_seconds();
 
+    // TODO: Limit this.
     let sim_dt = mechanical_world.timestep();
     while sim_to_render_time.diff >= sim_dt {
         mechanical_world.step(
@@ -131,13 +133,29 @@ pub fn sync_transform_system(
 ) {
     for (body_handle, mut transform) in query.iter_mut() {
         if let Some(body) = bodies.get(body_handle.handle()) {
-            if body.deformed_positions().is_some() {
-                continue;
+            let mut pos = Point2::<RealField>::new(0.0, 0.0);
+            let mut angle = 0.0;
+            let mut total_inertia = Inertia::zero();
+            for i in 0..body.num_parts() {
+                let part = body.part(i).unwrap();
+                let inertia = part.inertia();
+                if inertia.linear == 0.0 || inertia.angular == 0.0 {
+                    // Non-dynamic part.
+                    pos += part.position().translation.vector;
+                    angle += part.position().rotation.angle();
+                } else {
+                    pos += part.position().translation.vector * inertia.linear;
+                    angle += part.position().rotation.angle() * inertia.angular;
+                }
+                total_inertia += part.inertia();
             }
-            let pos = body.part(0).unwrap().position();
-            transform.translation.x = pos.translation.vector.x;
-            transform.translation.y = pos.translation.vector.y;
-            transform.rotation = Quat::from_rotation_z(pos.rotation.angle());
+            if total_inertia.linear != 0.0 && total_inertia.angular != 0.0 {
+                pos /= total_inertia.linear;
+                angle /= total_inertia.angular;
+            }
+            transform.translation.x = pos.x;
+            transform.translation.y = pos.y;
+            transform.rotation = Quat::from_rotation_z(angle);
         }
     }
 }

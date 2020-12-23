@@ -21,6 +21,7 @@ pub fn controlled_dango_system(
                 as i32
                 - (input.pressed(KeyCode::A) || input.pressed(KeyCode::Left)) as i32)
                 as f32;
+            // TODO: Apply to whole body, not a single part.
             body.apply_force(
                 0,
                 &Force::linear(Vector2::x() * horizontal_movement * 7.0),
