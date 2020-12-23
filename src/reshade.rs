@@ -35,39 +35,22 @@ impl Plugin for ReshadePlugin {
 }
 
 fn setup_pipeline(
+    asset_server: ResMut<AssetServer>,
     mut shaders: ResMut<Assets<Shader>>,
     mut pipelines: ResMut<Assets<PipelineDescriptor>>,
-    mut pipeline_compiler: ResMut<PipelineCompiler>,
-    render_resource_context: &dyn RenderResourceContext,
 ) -> Handle<PipelineDescriptor> {
     let pipeline_handle = pipelines.add(PipelineDescriptor::default_config(ShaderStages {
         vertex: shaders.add(Shader::from_glsl(
             ShaderStage::Vertex,
             include_str!("reshade.vert"),
         )),
-        fragment: Some(shaders.add(Shader::from_glsl(
-            ShaderStage::Fragment,
-            include_str!("reshade.frag"),
-        ))),
+        fragment: Some(asset_server.load::<Shader, _>("shaders/reshade.frag")),
     }));
     pipelines
         .get_mut(&pipeline_handle)
         .unwrap()
         .depth_stencil_state = None;
-
-    let pipeline_specialization = Default::default();
-
-    pipeline_compiler.compile_pipeline(
-        render_resource_context,
-        &mut pipelines,
-        &mut shaders,
-        &pipeline_handle,
-        &pipeline_specialization,
-    );
-
-    pipeline_compiler
-        .get_specialized_pipeline(&pipeline_handle, &pipeline_specialization)
-        .unwrap()
+    pipeline_handle
 }
 
 fn inject_into_render_graph(
@@ -141,19 +124,13 @@ fn inject_into_render_graph(
 }
 
 fn setup_reshade(
-    // asset_server: ResMut<AssetServer>,
+    asset_server: ResMut<AssetServer>,
     shaders: ResMut<Assets<Shader>>,
     pipelines: ResMut<Assets<PipelineDescriptor>>,
     render_graph: ResMut<RenderGraph>,
-    pipeline_compiler: ResMut<PipelineCompiler>,
     render_resource_context: Res<Box<dyn RenderResourceContext>>,
 ) {
-    let pipeline_handle = setup_pipeline(
-        shaders,
-        pipelines,
-        pipeline_compiler,
-        &**render_resource_context,
-    );
+    let pipeline_handle = setup_pipeline(asset_server, shaders, pipelines);
     inject_into_render_graph(render_graph, pipeline_handle, &**render_resource_context);
 }
 
@@ -313,8 +290,29 @@ impl Node for ReshadeNode {
             .get_texture()
             .unwrap();
 
-        let pipeline_descriptors = resources.get::<Assets<PipelineDescriptor>>().unwrap();
+        let mut pipeline_compiler = resources.get_mut::<PipelineCompiler>().unwrap();
+        let mut pipeline_descriptors = resources.get_mut::<Assets<PipelineDescriptor>>().unwrap();
+        let mut shaders = resources.get_mut::<Assets<Shader>>().unwrap();
         let pipeline_descriptor = pipeline_descriptors.get(&self.pipeline_handle).unwrap();
+
+        if shaders
+            .get(pipeline_descriptor.shader_stages.fragment.as_ref().unwrap())
+            .is_none()
+        {
+            return;
+        }
+
+        let pipeline_specialization = Default::default();
+        let specialized_pipeline_handle = pipeline_compiler.compile_pipeline(
+            render_context.resources(),
+            &mut *pipeline_descriptors,
+            &mut *shaders,
+            &self.pipeline_handle,
+            &pipeline_specialization,
+        );
+        let pipeline_descriptor = pipeline_descriptors
+            .get(specialized_pipeline_handle.clone())
+            .unwrap();
         let layout = pipeline_descriptor.get_layout().unwrap();
 
         // TODO: enumify this
@@ -351,7 +349,7 @@ impl Node for ReshadeNode {
             &self.pass_descriptor,
             &render_resource_bindings,
             &mut |render_pass| {
-                render_pass.set_pipeline(&self.pipeline_handle);
+                render_pass.set_pipeline(&specialized_pipeline_handle);
                 render_pass.set_bind_group(
                     IMAGE_BIND_GROUP_INDEX,
                     image_bind_group_descriptor.id,

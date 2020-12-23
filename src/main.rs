@@ -30,6 +30,12 @@ pub type RealField = f32;
 
 fn main() {
     let mut app = App::build();
+
+    // Note: Setup hot reloading first before loading other plugins.
+    // Shader assets loaded via ReshadePlugin won't get watched otherwise.
+    // TODO: Fix this by loading all assets from the main setup startup system.
+    app.add_startup_system(setup_hot_reloading.system());
+
     app.add_resource(ClearColor(Color::WHITE))
         .add_plugin(bevy::log::LogPlugin::default())
         .add_plugin(bevy::reflect::ReflectPlugin::default())
@@ -73,14 +79,15 @@ fn main() {
     app.run();
 }
 
+fn setup_hot_reloading(asset_server: ResMut<AssetServer>) {
+    asset_server.watch_for_changes().unwrap();
+}
+
 fn setup(
     commands: &mut Commands,
-    asset_server: ResMut<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    asset_server.watch_for_changes().unwrap();
-
     let yellow = materials.add(DANGO_YELLOW.into());
     let green = materials.add(DANGO_GREEN.into());
 
