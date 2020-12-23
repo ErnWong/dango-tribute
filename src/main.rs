@@ -17,7 +17,7 @@ mod physics;
 mod reshade;
 mod window_random_texture_node;
 
-use controlled_dango::{controlled_dango_system, ControlledDangoComponent};
+use controlled_dango::{ControlledDangoComponent, ControlledDangoPlugin};
 use dango::{colors::*, DangoDescriptorComponent, DangoPlugin};
 use physics::PhysicsPlugin;
 use reshade::ReshadePlugin;
@@ -58,20 +58,12 @@ fn main() {
         .add_plugin(ReshadePlugin)
         .add_plugin(PhysicsPlugin::new(Vector2::new(0.0, GRAVITY)))
         .add_plugin(DangoPlugin)
-        .add_plugin(DangoLand)
+        .add_plugin(ControlledDangoPlugin)
+        .add_startup_system(setup.system())
         .run();
 }
 
-pub struct DangoLand;
-
-impl Plugin for DangoLand {
-    fn build(&self, app: &mut AppBuilder) {
-        app.add_startup_system(setup_nphysics.system())
-            .add_system(controlled_dango_system.system());
-    }
-}
-
-fn setup_nphysics(
+fn setup(
     commands: &mut Commands,
     asset_server: ResMut<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>,

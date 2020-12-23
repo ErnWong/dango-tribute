@@ -1,5 +1,6 @@
 use super::physics::NPhysicsBodyHandleComponent;
 use bevy::prelude::*;
+use bevy_contrib_inspector::{Inspectable, InspectorPlugin};
 use nphysics2d::{
     force_generator::{DefaultForceGeneratorSet, ForceGenerator},
     math::{Force, ForceType},
@@ -11,6 +12,16 @@ use std::sync::{Arc, Mutex};
 
 use super::RealField;
 
+pub struct ControlledDangoPlugin;
+
+impl Plugin for ControlledDangoPlugin {
+    fn build(&self, app: &mut AppBuilder) {
+        app.add_plugin(InspectorPlugin::<ControlledDangoConfig>::new())
+            .add_system(controlled_dango_system.system())
+            .add_system(update_config_system.system());
+    }
+}
+
 #[derive(Default)]
 pub struct ControlledDangoComponent {
     // TODO: Is there a better way to restructure this?...
@@ -20,6 +31,7 @@ pub struct ControlledDangoComponent {
 #[derive(Default)]
 pub struct ControlledDangoState {
     applying_force: Vector2<RealField>,
+    config: ControlledDangoConfig,
 }
 
 pub struct ControlledDangoForceGenerator {
@@ -27,9 +39,25 @@ pub struct ControlledDangoForceGenerator {
     body_handle: DefaultBodyHandle,
 }
 
-pub const VARIABLE_JUMP_FORCE_INITIAL: RealField = 10.0;
-pub const VARIABLE_JUMP_FORCE_DECAY: RealField = 10.0;
-pub const HORIZONTAL_MOVEMENT_FORCE: RealField = 10.0;
+#[derive(Inspectable, Clone)]
+pub struct ControlledDangoConfig {
+    #[inspectable(min = 0.0, max = 100.0)]
+    variable_jump_force_initial: RealField,
+    #[inspectable(min = 0.0, max = 100.0)]
+    variable_jump_force_decay: RealField,
+    #[inspectable(min = 0.0, max = 100.0)]
+    horizontal_movement_force: RealField,
+}
+
+impl Default for ControlledDangoConfig {
+    fn default() -> Self {
+        Self {
+            variable_jump_force_initial: 10.0,
+            variable_jump_force_decay: 10.0,
+            horizontal_movement_force: 10.0,
+        }
+    }
+}
 
 impl ControlledDangoComponent {
     pub fn update_controls(&mut self, left: bool, right: bool, jump: bool) {
@@ -37,14 +65,14 @@ impl ControlledDangoComponent {
         let mut state = self.state.as_ref().unwrap().lock().unwrap();
         if jump {
             if state.applying_force[1] == 0.0 {
-                state.applying_force[1] = VARIABLE_JUMP_FORCE_INITIAL;
+                state.applying_force[1] = state.config.variable_jump_force_initial;
             }
         } else {
             state.applying_force[1] = 0.0;
         }
         // TODO: Change the horizontal force during midair.
-        state.applying_force[0] =
-            ((right as i32 as RealField) - (left as i32 as RealField)) * HORIZONTAL_MOVEMENT_FORCE;
+        state.applying_force[0] = ((right as i32 as RealField) - (left as i32 as RealField))
+            * state.config.horizontal_movement_force;
     }
 }
 
@@ -55,7 +83,7 @@ impl ForceGenerator<RealField, DefaultBodyHandle> for ControlledDangoForceGenera
         bodies: &mut dyn BodySet<RealField, Handle = DefaultBodyHandle>,
     ) {
         let mut state = self.state.lock().unwrap();
-        state.applying_force[1] -= VARIABLE_JUMP_FORCE_DECAY * parameters.dt();
+        state.applying_force[1] -= state.config.variable_jump_force_decay * parameters.dt();
         if state.applying_force[1] <= 0.0 {
             state.applying_force[1] = 0.0;
         }
@@ -97,5 +125,20 @@ pub fn controlled_dango_system(
         // simulation could go through several integration steps between each time this system
         // is called.
         controlled_dango.update_controls(left, right, jump);
+    }
+}
+
+pub fn update_config_system(
+    changed_config: ChangedRes<ControlledDangoConfig>,
+    query: Query<&ControlledDangoComponent>,
+) {
+    for controlled_dango in query.iter() {
+        controlled_dango
+            .state
+            .as_ref()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .config = changed_config.clone();
     }
 }
