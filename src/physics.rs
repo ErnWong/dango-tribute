@@ -135,28 +135,28 @@ pub fn sync_transform_system(
     for (body_handle, mut transform) in query.iter_mut() {
         if let Some(body) = bodies.get(body_handle.handle()) {
             let mut pos = Point2::<RealField>::new(0.0, 0.0);
-            let mut angle = 0.0;
-            let mut total_inertia = Inertia::zero();
+            let mut total_mass = 0.0;
             for i in 0..body.num_parts() {
                 let part = body.part(i).unwrap();
-                let inertia = part.inertia();
-                if inertia.linear == 0.0 || inertia.angular == 0.0 {
+                let mass = part.inertia().linear;
+                if mass == 0.0 {
                     // Non-dynamic part.
                     pos += part.position().translation.vector;
-                    angle += part.position().rotation.angle();
                 } else {
-                    pos += part.position().translation.vector * inertia.linear;
-                    angle += part.position().rotation.angle() * inertia.angular;
+                    pos += part.position().translation.vector * mass;
                 }
-                total_inertia += part.inertia();
+                total_mass += mass;
             }
-            if total_inertia.linear != 0.0 && total_inertia.angular != 0.0 {
-                pos /= total_inertia.linear;
-                angle /= total_inertia.angular;
+            if total_mass != 0.0 {
+                pos /= total_mass;
             }
             transform.translation.x = pos.x;
             transform.translation.y = pos.y;
-            transform.rotation = Quat::from_rotation_z(angle);
+
+            // Use the first part for the angle, since we can't averag out angles
+            // easily (since angles wrap around).
+            transform.rotation =
+                Quat::from_rotation_z(body.part(0).unwrap().position().rotation.angle());
         }
     }
 }
