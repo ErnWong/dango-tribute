@@ -4,7 +4,7 @@ use nphysics2d::{
     force_generator::{DefaultForceGeneratorSet, ForceGenerator},
     math::{Force, ForceType},
     nalgebra::Vector2,
-    object::{BodySet, DefaultBodyHandle, DefaultColliderSet},
+    object::{BodySet, DefaultBodyHandle, DefaultColliderHandle, DefaultColliderSet},
     solver::IntegrationParameters,
     world::DefaultGeometricalWorld,
 };
@@ -110,6 +110,29 @@ impl ForceGenerator<RealField, DefaultBodyHandle> for ControlledDangoForceGenera
     }
 }
 
+pub fn has_feet_contact(
+    transform: &Transform,
+    collider_handle: DefaultColliderHandle,
+    colliders: &DefaultColliderSet<RealField>,
+    geometrical_world: &DefaultGeometricalWorld<RealField>,
+) -> bool {
+    if let Some(collider) = colliders.get(collider_handle) {
+        if collider.graph_index().is_some() {
+            for (_, _, _, _, _, manifold) in geometrical_world
+                .contacts_with(&*colliders, collider_handle, true)
+                .unwrap()
+            {
+                for contact in manifold.contacts() {
+                    if contact.contact.world1[1] < transform.translation.y {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
+
 pub fn controlled_dango_system(
     input: Res<Input<KeyCode>>,
     colliders: Res<DefaultColliderSet<RealField>>,
@@ -131,27 +154,18 @@ pub fn controlled_dango_system(
                 body_handle: body_handle.handle(),
             }));
         }
+
         let right = input.pressed(KeyCode::D) || input.pressed(KeyCode::Right);
         let left = input.pressed(KeyCode::A) || input.pressed(KeyCode::Left);
         let jump = input.pressed(KeyCode::W)
             || input.pressed(KeyCode::Space)
             || input.pressed(KeyCode::Up);
-
-        let mut in_air = true;
-        if let Some(collider) = colliders.get(collider_handle.handle()) {
-            if collider.graph_index().is_some() {
-                for (_, _, _, _, _, manifold) in geometrical_world
-                    .contacts_with(&*colliders, collider_handle.handle(), true)
-                    .unwrap()
-                {
-                    for contact in manifold.contacts() {
-                        if contact.contact.world1[1] < transform.translation.y {
-                            in_air = false;
-                        }
-                    }
-                }
-            }
-        }
+        let in_air = !has_feet_contact(
+            transform,
+            collider_handle.handle(),
+            &*colliders,
+            &*geometrical_world,
+        );
 
         // Note: We handle force application in a dedicated ForceGenerator because the physics
         // simulation could go through several integration steps between each time this system
