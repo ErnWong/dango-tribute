@@ -35,6 +35,9 @@ pub struct ControlledDangoComponent {
 #[derive(Default)]
 pub struct ControlledDangoState {
     applying_force: Vector2<RealField>,
+    lock_rotation: bool,
+    center_of_mass: Vector2<RealField>,
+    in_air_cooldown: f32,
     config: ControlledDangoConfig,
 }
 
@@ -67,7 +70,15 @@ impl Default for ControlledDangoConfig {
 }
 
 impl ControlledDangoComponent {
-    pub fn update_controls(&mut self, left: bool, right: bool, jump: bool, in_air: bool) {
+    pub fn update_controls(
+        &mut self,
+        left: bool,
+        right: bool,
+        jump: bool,
+        roll: bool,
+        in_air: bool,
+        translation: Vec3,
+    ) {
         let mut state = self.state.as_ref().unwrap().lock().unwrap();
         if jump {
             if state.applying_force[1] == 0.0 && !in_air {
@@ -82,6 +93,8 @@ impl ControlledDangoComponent {
             } else {
                 state.config.horizontal_ground_movement_force
             };
+        state.lock_rotation = !roll && !in_air;
+        state.center_of_mass = Vector2::new(translation.x, translation.y);
     }
 }
 
@@ -96,14 +109,29 @@ impl ForceGenerator<RealField, DefaultBodyHandle> for ControlledDangoForceGenera
         if state.applying_force[1] <= 0.0 {
             state.applying_force[1] = 0.0;
         }
-        // Note: We skip force application if the desired control force is zero. This is to allow
-        // bodies to enter sleep mode in the physics engine whenever they get the chance.
-        if state.applying_force != Vector2::new(0.0, 0.0) {
-            if let Some(body) = bodies.get_mut(self.body_handle) {
-                // TODO: Implement non-uniform force distribution.
-                let force_per_part = state.applying_force / body.num_parts() as RealField;
+        if let Some(body) = bodies.get_mut(self.body_handle) {
+            // TODO: Implement non-uniform force distribution.
+            let force_per_part = state.applying_force / body.num_parts() as RealField;
+            for i in 0..body.num_parts() {
+                body.apply_force(i, &Force::linear(force_per_part), ForceType::Force, true);
+            }
+            if state.lock_rotation {
                 for i in 0..body.num_parts() {
-                    body.apply_force(i, &Force::linear(force_per_part), ForceType::Force, true);
+                    let part = body.part(i).unwrap();
+                    let angle = part.position().rotation.angle();
+                    let mut feedback_output = angle * 50.0 / body.num_parts() as RealField;
+                    if feedback_output > 6.0 {
+                        feedback_output = 6.0;
+                    } else if feedback_output < -6.0 {
+                        feedback_output = -6.0;
+                    }
+                    let vector_from_center =
+                        part.position().translation.vector - state.center_of_mass;
+                    let force = Force::linear(Vector2::new(
+                        vector_from_center[1] * feedback_output,
+                        -vector_from_center[0] * feedback_output,
+                    ));
+                    body.apply_force(i, &force, ForceType::Force, true);
                 }
             }
         }
@@ -160,6 +188,7 @@ pub fn controlled_dango_system(
         let jump = input.pressed(KeyCode::W)
             || input.pressed(KeyCode::Space)
             || input.pressed(KeyCode::Up);
+        let roll = input.pressed(KeyCode::LShift) || input.pressed(KeyCode::RShift);
         let in_air = !has_feet_contact(
             transform,
             collider_handle.handle(),
@@ -170,7 +199,7 @@ pub fn controlled_dango_system(
         // Note: We handle force application in a dedicated ForceGenerator because the physics
         // simulation could go through several integration steps between each time this system
         // is called.
-        controlled_dango.update_controls(left, right, jump, in_air);
+        controlled_dango.update_controls(left, right, jump, roll, in_air, transform.translation);
     }
 }
 
