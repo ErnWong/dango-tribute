@@ -56,7 +56,6 @@ fn setup_pipeline(
 fn inject_into_render_graph(
     mut render_graph: ResMut<RenderGraph>,
     pipeline_handle: Handle<PipelineDescriptor>,
-    render_resource_context: &dyn RenderResourceContext,
 ) {
     render_graph.add_node(
         "reshade_source_texture",
@@ -82,10 +81,7 @@ fn inject_into_render_graph(
             },
         ),
     );
-    render_graph.add_system_node(
-        "reshade",
-        ReshadeNode::new(pipeline_handle, render_resource_context),
-    );
+    render_graph.add_system_node("reshade", ReshadeNode::new(pipeline_handle));
     render_graph
         .add_slot_edge(
             "reshade_source_texture",
@@ -128,15 +124,14 @@ fn setup_reshade(
     shaders: ResMut<Assets<Shader>>,
     pipelines: ResMut<Assets<PipelineDescriptor>>,
     render_graph: ResMut<RenderGraph>,
-    render_resource_context: Res<Box<dyn RenderResourceContext>>,
 ) {
     let pipeline_handle = setup_pipeline(asset_server, shaders, pipelines);
-    inject_into_render_graph(render_graph, pipeline_handle, &**render_resource_context);
+    inject_into_render_graph(render_graph, pipeline_handle);
 }
 
 pub struct ReshadeNode {
     pipeline_handle: Handle<PipelineDescriptor>,
-    sampler: SamplerId,
+    sampler: Option<SamplerId>,
     pass_descriptor: PassDescriptor,
 }
 
@@ -149,23 +144,10 @@ impl ReshadeNode {
     pub const IN_TARGET_COLOR_TEXTURE: &'static str = "color_attachment";
     pub const IN_TARGET_COLOR_TEXTURE_INDEX: usize = 2;
 
-    pub fn new(
-        pipeline_handle: Handle<PipelineDescriptor>,
-        render_resource_context: &dyn RenderResourceContext,
-    ) -> ReshadeNode {
+    pub fn new(pipeline_handle: Handle<PipelineDescriptor>) -> ReshadeNode {
         ReshadeNode {
             pipeline_handle,
-            sampler: render_resource_context.create_sampler(&SamplerDescriptor {
-                // Allow random texture to repeat past the boundary.
-                address_mode_u: AddressMode::Repeat,
-                address_mode_v: AddressMode::Repeat,
-                address_mode_w: AddressMode::Repeat,
-                // Allow smoothness in random texture.
-                mag_filter: FilterMode::Linear,
-                min_filter: FilterMode::Linear,
-                mipmap_filter: FilterMode::Linear,
-                ..Default::default()
-            }),
+            sampler: None,
             pass_descriptor: PassDescriptor {
                 color_attachments: vec![RenderPassColorAttachmentDescriptor {
                     attachment: TextureAttachment::Input("color_attachment".to_string()),
@@ -188,19 +170,8 @@ impl SystemNode for ReshadeNode {
         commands.insert_resource(InfoBindGroup {
             bind_group: BindGroup::build().finish(),
         });
-        commands.insert_local_resource(
-            system.id(),
-            ReshadeNodeState {
-                sampler: Some(self.sampler),
-            },
-        );
         Box::new(system)
     }
-}
-
-#[derive(Debug, Default)]
-struct ReshadeNodeState {
-    sampler: Option<SamplerId>,
 }
 
 struct InfoBindGroup {
@@ -208,7 +179,6 @@ struct InfoBindGroup {
 }
 
 fn reshade_node_system(
-    state: Local<ReshadeNodeState>,
     render_resource_context: Res<Box<dyn RenderResourceContext>>,
     mut shared_buffers: ResMut<SharedBuffers>,
     mut info_bind_group: ResMut<InfoBindGroup>,
@@ -244,11 +214,10 @@ fn reshade_node_system(
         .get_uniform_buffer(&**render_resource_context, &mouse)
         .unwrap();
     info_bind_group.bind_group = BindGroup::build()
-        .add_sampler(0, state.sampler.unwrap())
-        .add_binding(1, resolution_buffer)
-        .add_binding(2, time_buffer)
-        .add_binding(3, time_delta_buffer)
-        .add_binding(4, mouse_buffer)
+        .add_binding(0, resolution_buffer)
+        .add_binding(1, time_buffer)
+        .add_binding(2, time_delta_buffer)
+        .add_binding(3, mouse_buffer)
         .finish();
 }
 
@@ -302,6 +271,26 @@ impl Node for ReshadeNode {
             return;
         }
 
+        // Lazily create the sampler only once the render resource context has been made available.
+        // (To support bevy_webgl2)
+        self.sampler = self.sampler.or_else(|| {
+            Some(
+                render_context
+                    .resources()
+                    .create_sampler(&SamplerDescriptor {
+                        // Allow random texture to repeat past the boundary.
+                        address_mode_u: AddressMode::Repeat,
+                        address_mode_v: AddressMode::Repeat,
+                        address_mode_w: AddressMode::Repeat,
+                        // Allow smoothness in random texture.
+                        mag_filter: FilterMode::Linear,
+                        min_filter: FilterMode::Linear,
+                        mipmap_filter: FilterMode::Linear,
+                        ..Default::default()
+                    }),
+            )
+        });
+
         let pipeline_specialization = Default::default();
         let specialized_pipeline_handle = pipeline_compiler.compile_pipeline(
             render_context.resources(),
@@ -323,6 +312,7 @@ impl Node for ReshadeNode {
         let image_bind_group = BindGroup::build()
             .add_texture(0, source_texture)
             .add_texture(1, random_texture)
+            .add_sampler(2, self.sampler.unwrap())
             .finish();
         render_context
             .resources()

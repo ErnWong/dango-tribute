@@ -3,17 +3,17 @@
 layout(location = 0) out vec4 o_color;
 layout(set = 0, binding = 0) uniform texture2D i_source;
 layout(set = 0, binding = 1) uniform texture2D i_random;
-layout(set = 1, binding = 0) uniform sampler i_sampler;
-layout(set = 1, binding = 1) uniform Resolution {
+layout(set = 0, binding = 2) uniform sampler i_sampler;
+layout(set = 1, binding = 0) uniform Resolution {
     vec2 i_resolution;
 };
-layout(set = 1, binding = 2) uniform Time {
+layout(set = 1, binding = 1) uniform Time {
     float i_time_sec;
 };
-layout(set = 1, binding = 3) uniform TimeDelta {
+layout(set = 1, binding = 2) uniform TimeDelta {
     float i_time_delta_sec;
 };
-layout(set = 1, binding = 4) uniform Mouse {
+layout(set = 1, binding = 3) uniform Mouse {
     vec4 i_mouse;
 };
 

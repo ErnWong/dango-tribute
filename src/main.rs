@@ -56,8 +56,7 @@ fn main() {
         .add_plugin(bevy::render::RenderPlugin {
             base_render_graph_config: Some(BaseRenderGraphConfig {
                 // So we can route main pass through our reshade plugin.
-                // TODO: Fix for wasm.
-                // connect_main_pass_to_swapchain: false,
+                connect_main_pass_to_swapchain: false,
                 ..Default::default()
             }),
         })
@@ -79,8 +78,7 @@ fn main() {
 
     app.add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(PrintDiagnosticsPlugin::default())
-        // TODO: Fix for wasm.
-        //.add_plugin(ReshadePlugin)
+        .add_plugin(ReshadePlugin)
         .add_plugin(TransformTrackingPlugin)
         .add_plugin(PhysicsPlugin::new(Vector2::new(0.0, GRAVITY)))
         .add_plugin(DangoPlugin)
