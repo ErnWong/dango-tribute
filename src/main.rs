@@ -3,7 +3,10 @@ use bevy::{
     prelude::*,
     render::{pass::ClearColor, render_graph::base::BaseRenderGraphConfig},
 };
+
+#[cfg(feature = "debug-fly-camera")]
 use bevy_fly_camera::{FlyCamera, FlyCameraPlugin};
+
 use bevy_prototype_lyon::prelude::*;
 use nphysics2d::{
     nalgebra::Vector2,
@@ -53,7 +56,8 @@ fn main() {
         .add_plugin(bevy::render::RenderPlugin {
             base_render_graph_config: Some(BaseRenderGraphConfig {
                 // So we can route main pass through our reshade plugin.
-                connect_main_pass_to_swapchain: false,
+                // TODO: Fix for wasm.
+                // connect_main_pass_to_swapchain: false,
                 ..Default::default()
             }),
         })
@@ -61,25 +65,30 @@ fn main() {
         .add_plugin(bevy::pbr::PbrPlugin::default())
         .add_plugin(bevy::ui::UiPlugin::default())
         .add_plugin(bevy::text::TextPlugin::default())
-        .add_plugin(bevy::audio::AudioPlugin::default())
         .add_plugin(bevy::gltf::GltfPlugin::default())
-        .add_plugin(bevy::winit::WinitPlugin::default())
-        .add_plugin(bevy::wgpu::WgpuPlugin::default())
-        .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .add_plugin(bevy::winit::WinitPlugin::default());
+
+    #[cfg(feature = "native")]
+    app.add_plugin(bevy::wgpu::WgpuPlugin::default());
+
+    #[cfg(target_arch = "wasm32")]
+    app.add_plugin(bevy_webgl2::WebGL2Plugin);
+
+    // Order is important.
+    // The above plugins provide resources for the plugins below.
+
+    app.add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(PrintDiagnosticsPlugin::default())
-        .add_plugin(ReshadePlugin)
+        // TODO: Fix for wasm.
+        //.add_plugin(ReshadePlugin)
         .add_plugin(TransformTrackingPlugin)
         .add_plugin(PhysicsPlugin::new(Vector2::new(0.0, GRAVITY)))
         .add_plugin(DangoPlugin)
         .add_plugin(ControlledDangoPlugin)
         .add_startup_system(setup.system());
 
-    #[cfg(target_arch = "wasm32")]
-    app.add_plugin(bevy_webgl2::WebGL2Plugin);
-
-    if cfg!(feature = "debug-fly-camera") {
-        app.add_plugin(FlyCameraPlugin);
-    }
+    #[cfg(feature = "debug-fly-camera")]
+    app.add_plugin(FlyCameraPlugin);
 
     app.run();
 }
@@ -105,8 +114,11 @@ fn setup(
             },
             ..Default::default()
         })
-        .with(TransformTrackingFollower)
-        .with(FlyCamera::default())
+        .with(TransformTrackingFollower);
+    #[cfg(feature = "debug-fly-camera")]
+    commands.with(FlyCamera::default());
+
+    commands
         .spawn(primitive(
             yellow.clone(),
             &mut meshes,
