@@ -15,6 +15,7 @@ mod controlled_dango;
 mod dango;
 mod physics;
 mod reshade;
+mod transform_tracking;
 mod window_random_texture_node;
 
 #[cfg(target_arch = "wasm32")]
@@ -24,6 +25,9 @@ use controlled_dango::{ControlledDangoComponent, ControlledDangoPlugin};
 use dango::{colors::*, DangoDescriptorComponent, DangoPlugin};
 use physics::PhysicsPlugin;
 use reshade::ReshadePlugin;
+use transform_tracking::{
+    TransformTrackingFollower, TransformTrackingPlugin, TransformTrackingTarget,
+};
 
 pub const GRAVITY: f32 = -9.81 * 1.5;
 pub type RealField = f32;
@@ -64,6 +68,7 @@ fn main() {
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(PrintDiagnosticsPlugin::default())
         .add_plugin(ReshadePlugin)
+        .add_plugin(TransformTrackingPlugin)
         .add_plugin(PhysicsPlugin::new(Vector2::new(0.0, GRAVITY)))
         .add_plugin(DangoPlugin)
         .add_plugin(ControlledDangoPlugin)
@@ -100,6 +105,7 @@ fn setup(
             },
             ..Default::default()
         })
+        .with(TransformTrackingFollower)
         .with(FlyCamera::default())
         .spawn(primitive(
             yellow.clone(),
@@ -153,5 +159,6 @@ fn setup(
             size: 0.5,
             color: DANGO_GREEN,
         },))
-        .with(ControlledDangoComponent::default());
+        .with(ControlledDangoComponent::default())
+        .with(TransformTrackingTarget);
 }
