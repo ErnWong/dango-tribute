@@ -111,6 +111,25 @@ fn setup(
             yellow.clone(),
             &mut meshes,
             ShapeType::Rectangle {
+                width: 1000.0,
+                height: 10.0,
+            },
+            TessellationMode::Fill(&FillOptions::default()),
+            Vec3::zero().into(),
+        ))
+        .with(
+            RigidBodyDesc::<RealField>::new()
+                .translation(Vector2::new(-30.0, -15.0))
+                .status(BodyStatus::Static),
+        )
+        .with(
+            ColliderDesc::<RealField>::new(ShapeHandle::new(Cuboid::new(Vector2::new(500.0, 5.0))))
+                .translation(Vector2::new(500.0, 5.0)),
+        )
+        .spawn(primitive(
+            yellow.clone(),
+            &mut meshes,
+            ShapeType::Rectangle {
                 width: 10.0,
                 height: 0.3,
             },
