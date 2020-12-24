@@ -4,7 +4,7 @@ use nphysics2d::{
     force_generator::{DefaultForceGeneratorSet, ForceGenerator},
     math::{Force, ForceType},
     nalgebra::{Vector2, Vector3},
-    object::{BodySet, DefaultBodyHandle, DefaultColliderHandle, DefaultColliderSet},
+    object::{Body, BodySet, DefaultBodyHandle, DefaultColliderHandle, DefaultColliderSet},
     solver::IntegrationParameters,
     world::DefaultGeometricalWorld,
 };
@@ -36,8 +36,11 @@ pub struct ControlledDangoComponent {
 #[derive(Default)]
 pub struct ControlledDangoState {
     applying_force: Vector2<RealField>,
+    applying_drag: bool,
     lock_rotation: bool,
     center_of_mass: Vector2<RealField>,
+    is_crawling: bool,
+    crawl_side_timer: RealField,
     config: ControlledDangoConfig,
 }
 
@@ -54,8 +57,14 @@ pub struct ControlledDangoConfig {
     #[inspectable(min = 0.0, max = 1000.0)]
     variable_jump_force_decay: RealField,
 
+    #[inspectable(min = 0.0, max = 0.2)]
+    ground_drag: RealField,
+
     #[inspectable(min = 0.0, max = 100.0)]
-    horizontal_ground_movement_force: RealField,
+    horizontal_crawling_movement_force: RealField,
+
+    #[inspectable(min = 0.0, max = 100.0)]
+    horizontal_rolling_movement_force: RealField,
 
     #[inspectable(min = 0.0, max = 100.0)]
     horizontal_air_movement_force: RealField,
@@ -65,17 +74,31 @@ pub struct ControlledDangoConfig {
 
     #[inspectable(min = 0.0, max = 40.0)]
     angle_proportional_controller_coefficient: RealField,
+
+    #[inspectable(min = 0.0, max=PI)]
+    stable_angle_margin: RealField,
+
+    #[inspectable(min = 1.0, max = 10.0)]
+    crawl_side_frequency: RealField,
+
+    #[inspectable(min = 0.0, max = 10.0)]
+    crawl_side_amplitude: RealField,
 }
 
 impl Default for ControlledDangoConfig {
     fn default() -> Self {
         Self {
             variable_jump_force_initial: 80.0,
-            variable_jump_force_decay: 600.0,
-            horizontal_ground_movement_force: 10.0,
+            variable_jump_force_decay: 500.0,
+            ground_drag: 0.1,
+            horizontal_crawling_movement_force: 7.0,
+            horizontal_rolling_movement_force: 12.0,
             horizontal_air_movement_force: 2.0,
             angular_momentum_compensation_ratio: 0.16,
             angle_proportional_controller_coefficient: 25.0,
+            stable_angle_margin: 0.3 * PI,
+            crawl_side_frequency: 2.0,
+            crawl_side_amplitude: 20.0,
         }
     }
 }
@@ -101,10 +124,14 @@ impl ControlledDangoComponent {
         state.applying_force[0] = ((right as i32 as RealField) - (left as i32 as RealField))
             * if in_air {
                 state.config.horizontal_air_movement_force
+            } else if roll {
+                state.config.horizontal_rolling_movement_force
             } else {
-                state.config.horizontal_ground_movement_force
+                state.config.horizontal_crawling_movement_force
             };
         state.lock_rotation = !roll && !in_air;
+        state.is_crawling = !roll && !in_air;
+        state.applying_drag = !in_air;
         state.center_of_mass = Vector2::new(translation.x, translation.y);
     }
 }
@@ -116,61 +143,65 @@ impl ForceGenerator<RealField, DefaultBodyHandle> for ControlledDangoForceGenera
         bodies: &mut dyn BodySet<RealField, Handle = DefaultBodyHandle>,
     ) {
         let mut state = self.state.lock().unwrap();
+
+        // Update variable jump force.
         state.applying_force[1] -= state.config.variable_jump_force_decay * parameters.dt();
         if state.applying_force[1] <= 0.0 {
             state.applying_force[1] = 0.0;
         }
+
+        // Timer counts upwards from 0 and wraps around at 1.0
+        state.crawl_side_timer += state.config.crawl_side_frequency * parameters.dt();
+        state.crawl_side_timer %= 1.0;
+
+        // We want peak pos to oscillate between -1.0 and 1.0
+        let crawl_force_peak_pos = if state.crawl_side_timer > 0.5 {
+            3.0 - 4.0 * state.crawl_side_timer
+        } else {
+            4.0 * state.crawl_side_timer - 1.0
+        };
+
         if let Some(body) = bodies.get_mut(self.body_handle) {
-            // TODO: Implement non-uniform force distribution.
+            // Dear physicists and mechanical engineers, please don't hate me for what
+            // I'm about to do...
+            let estimate = estimate_dango_state(body, &state);
+
+            // Add in some fictitious ground drag to prevent dangos from accelerating to infinity.
+            let drag = if state.applying_drag {
+                // Don't apply ground drag to y axis to prevent artificial bounciness due to the
+                // impact incidence velocity.
+                -state.config.ground_drag * estimate.velocity.x / body.num_parts() as RealField
+            } else {
+                0.0
+            };
+
             let force_per_part = state.applying_force / body.num_parts() as RealField;
             for i in 0..body.num_parts() {
-                body.apply_force(i, &Force::linear(force_per_part), ForceType::Force, true);
+                let mut force = force_per_part.clone();
+                if state.is_crawling {
+                    let pos = body.part(i).unwrap().position().translation.vector.x
+                        - state.center_of_mass.x;
+
+                    let multiplier =
+                        state.config.crawl_side_amplitude * pos * crawl_force_peak_pos + 1.0;
+
+                    force.x *= multiplier;
+                }
+                // Don't apply ground drag to y axis to prevent artificial bounciness due to the
+                // impact incidence velocity.
+                force.x += drag;
+                body.apply_force(i, &Force::linear(force), ForceType::Force, true);
             }
 
             if state.lock_rotation {
-                // Dear physicists and mechanical engineers, please don't hate me for what
-                // I'm about to do...
-
-                // First, figure out how much angular momentum our dango has.
-                // We pretend that each vertex represents an equal amount of mass (which is
-                // obviously not true due to the design of Lyon's tesselator).
-                let mut estimated_angular_momentum: RealField = 0.0;
-                let mut estimated_radius_squared: RealField = 0.0;
-                let generalized_velocities = body.generalized_velocity();
-                let generalized_positions = body.deformed_positions().unwrap().1;
-                for i in (0..generalized_velocities.len()).step_by(2) {
-                    let vertex =
-                        Vector3::new(generalized_positions[i], generalized_positions[i + 1], 0.0);
-                    let velocity = Vector3::new(
-                        generalized_velocities[i],
-                        generalized_velocities[i + 1],
-                        0.0,
-                    );
-                    let radius = vertex
-                        - Vector3::new(state.center_of_mass[0], state.center_of_mass[1], 0.0);
-
-                    // We don't divide by r^2 here because (I think) it cancels out
-                    // with the moment of inertia, so later we just multiply by the linear mass.
-                    estimated_angular_momentum += radius.cross(&velocity).z;
-                    estimated_radius_squared += radius.dot(&radius);
-                }
-                // How heavy is our dango? I don't know... so how about we just
-                // recalculate it every single frame? Because... why not.
-                // Real game devs please don't hate me.
-                let mut mass: RealField = 0.0;
-                for i in 0..body.num_parts() {
-                    mass += body.part(i).unwrap().inertia().linear;
-                }
-                estimated_angular_momentum *= mass;
-
                 // We want to get rid of all this angular momentum, so let's apply
                 // linear impulses to each triangular element of this FEMSurface
                 // proportional to the distance from the center of mass.
 
                 // For stability reasons, we will only apply a fraction of the
                 // impulse needed to "apply angular braking" over several timesteps.
-                let angular_momentum_compensation_per_radius = estimated_angular_momentum
-                    / estimated_radius_squared
+                let angular_momentum_compensation_per_radius = estimate.angular_momentum
+                    / estimate.sum_of_radius_squared
                     * state.config.angular_momentum_compensation_ratio;
 
                 // Finally, apply a proportional controller to correct the dango's angle
@@ -179,7 +210,7 @@ impl ForceGenerator<RealField, DefaultBodyHandle> for ControlledDangoForceGenera
                 let angle_compensation_per_radius =
                     angle * state.config.angle_proportional_controller_coefficient;
 
-                // If the dango's angle is more than 90 degree offset and has sufficient angular
+                // If the dango's angle is more than some angle offset and has sufficient angular
                 // momentum going away from the 0 degree offset, then invert the angle compensator
                 // to allow the dango to naturally roll back to the 0 degree. This is to prevent
                 // weird jerky motions by the compensator. I.e., go with the flow.
@@ -187,9 +218,10 @@ impl ForceGenerator<RealField, DefaultBodyHandle> for ControlledDangoForceGenera
                 // This means that when the number of body parts change, the behaviour will
                 // become very different. We may need to recallibrate and rethink about this
                 // expression the next time we change the tessellator's tolerance parameter.
-                let past_90_degrees = angle.abs() > 0.5 * PI;
-                let is_rolling_away = estimated_angular_momentum.signum() * angle.signum() > 0.0;
-                let angle_natural_compensation_per_radius = if past_90_degrees && is_rolling_away {
+                let past_stable_angle = angle.abs() > state.config.stable_angle_margin;
+                let is_rolling_away = estimate.angular_momentum.signum() * angle.signum() > 0.0;
+                let angle_natural_compensation_per_radius = if past_stable_angle && is_rolling_away
+                {
                     -angle_compensation_per_radius
                 } else {
                     angle_compensation_per_radius
@@ -218,6 +250,56 @@ impl ForceGenerator<RealField, DefaultBodyHandle> for ControlledDangoForceGenera
                 }
             }
         }
+    }
+}
+
+pub struct EstimatedWholeDangoState {
+    angular_momentum: RealField,
+    velocity: Vector2<RealField>,
+    sum_of_radius_squared: RealField,
+}
+
+pub fn estimate_dango_state(
+    body: &dyn Body<RealField>,
+    state: &ControlledDangoState,
+) -> EstimatedWholeDangoState {
+    // We pretend that each vertex represents an equal amount of mass (which is
+    // obviously not true due to the design of Lyon's tessellator).
+    let mut angular_momentum: RealField = 0.0;
+    let mut sum_of_radius_squared: RealField = 0.0;
+    let mut velocity: Vector2<RealField> = Vector2::new(0.0, 0.0);
+    let generalized_velocities = body.generalized_velocity();
+    let generalized_positions = body.deformed_positions().unwrap().1;
+    for i in (0..generalized_velocities.len()).step_by(2) {
+        let vertex = Vector3::new(generalized_positions[i], generalized_positions[i + 1], 0.0);
+        let part_velocity = Vector3::new(
+            generalized_velocities[i],
+            generalized_velocities[i + 1],
+            0.0,
+        );
+        let radius = vertex - Vector3::new(state.center_of_mass[0], state.center_of_mass[1], 0.0);
+
+        // We don't divide by r^2 here because (I think) it cancels out
+        // with the moment of inertia, so later we just multiply by the linear mass.
+        angular_momentum += radius.cross(&part_velocity).z;
+        sum_of_radius_squared += radius.dot(&radius);
+
+        velocity += part_velocity.xy();
+    }
+
+    // How heavy is our dango? I don't know... so how about we just
+    // recalculate it every single frame? Because... why not.
+    // Real game devs please don't hate me.
+    let mut mass: RealField = 0.0;
+    for i in 0..body.num_parts() {
+        mass += body.part(i).unwrap().inertia().linear;
+    }
+    angular_momentum *= mass;
+
+    EstimatedWholeDangoState {
+        angular_momentum,
+        velocity,
+        sum_of_radius_squared,
     }
 }
 
