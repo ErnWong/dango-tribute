@@ -1,21 +1,28 @@
-#version 450
+#version 300 es
+precision highp float;
 
-layout(location = 0) out vec4 o_color;
-layout(set = 0, binding = 0) uniform texture2D i_source;
-layout(set = 0, binding = 1) uniform texture2D i_random;
-layout(set = 0, binding = 2) uniform sampler i_sampler;
-layout(set = 1, binding = 0) uniform Resolution {
+out vec4 o_color;
+uniform sampler2D i_source; // set = 0, binding = 0
+uniform sampler2D i_random; // set = 0, binding = 1
+layout(std140) uniform Resolution { // set = 1, binding = 0
     vec2 i_resolution;
 };
-layout(set = 1, binding = 1) uniform Time {
+layout(std140) uniform Time { // set = 1, binding = 1
     float i_time_sec;
 };
-layout(set = 1, binding = 2) uniform TimeDelta {
+layout(std140) uniform TimeDelta { // set = 1, binding = 2
     float i_time_delta_sec;
 };
-layout(set = 1, binding = 3) uniform Mouse {
+layout(std140) uniform Mouse { // set = 1, binding = 3
     vec4 i_mouse;
 };
+
+vec4 read_texture(sampler2D the_texture, vec2 position) {
+    return texture(the_texture, position);
+}
+
+// The rest can be copied to the wgpu version.
+// The webgl2 version shall be the source of truth.
 
 vec2 pos2uv(vec2 pos) {
     return pos / i_resolution;
@@ -29,7 +36,7 @@ vec4 rand(vec2 pos, float page) {
     vec2 page_based_offset = page * PAGE_OFFSET_DIRECTION;
 
     vec2 uv = pos2uv(pos + time_based_offset + page_based_offset);
-    return texture(sampler2D(i_random, i_sampler), uv);
+    return read_texture(i_random, uv);
 }
 
 vec4 smoothed_rand(vec2 pos, float smoothing, float page) {
@@ -40,11 +47,11 @@ vec4 smoothed_rand(vec2 pos, float smoothing, float page) {
 
 vec3 source(vec2 pos) {
     vec2 uv = pos2uv(pos);
-    return texture(sampler2D(i_source, i_sampler), uv).rgb;
+    return read_texture(i_source, uv).rgb;
 }
 
 float source_brightness(vec2 pos) {
-    return length(source(pos)) / sqrt(3);
+    return length(source(pos)) / sqrt(3.0);
 }
 
 float source_darkness(vec2 pos) {
@@ -76,7 +83,7 @@ vec4 sketch_hatch(float page, vec2 hatch_direction, float contrast, float thickn
     vec2 projected_pos = hatch_direction
         * dot(gl_FragCoord.xy, hatch_direction)
         / dot(hatch_direction, hatch_direction);
-    vec2 stretched_pos = gl_FragCoord.xy - projected_pos * (1 - 1 / length(hatch_direction));
+    vec2 stretched_pos = gl_FragCoord.xy - projected_pos * (1.0 - 1.0 / length(hatch_direction));
     float stretched_rand = rand(stretched_pos, page).a;
 
     // Weight the random texture with the source's darker regions.
@@ -114,7 +121,7 @@ vec4 paper_dents() {
 }
 
 void draw(vec4 colour) {
-    o_color.rgb = colour.rgb * colour.a + o_color.rgb * (1 - colour.a);
+    o_color.rgb = colour.rgb * colour.a + o_color.rgb * (1.0 - colour.a);
 }
 
 vec2 polar(float angle_degrees, float magnitude) {

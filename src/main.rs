@@ -21,7 +21,7 @@ mod reshade;
 mod transform_tracking;
 mod window_random_texture_node;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(feature = "web")]
 use bevy_webgl2;
 
 use controlled_dango::{ControlledDangoComponent, ControlledDangoPlugin};
@@ -70,7 +70,7 @@ fn main() {
     #[cfg(feature = "native")]
     app.add_plugin(bevy::wgpu::WgpuPlugin::default());
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(feature = "web")]
     app.add_plugin(bevy_webgl2::WebGL2Plugin);
 
     // Order is important.

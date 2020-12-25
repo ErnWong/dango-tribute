@@ -88,7 +88,15 @@ impl Node for WindowRandomTextureNode {
             rand::thread_rng().fill_bytes(&mut data);
             let random_buffer = render_resource_context.create_buffer_with_data(
                 BufferInfo {
-                    buffer_usage: BufferUsage::COPY_SRC | BufferUsage::MAP_WRITE,
+                    // buffer_usage: BufferUsage::COPY_SRC | BufferUsage::MAP_WRITE,
+                    // I don't know what I'm doing.... but let's try force WebGL2Plugin to use the
+                    // WebGLBuffer since copy_buffer_to_texture from an in-memory buffer is not
+                    // supported.
+                    buffer_usage: if cfg!(target_arch = "wasm32") {
+                        BufferUsage::COPY_SRC
+                    } else {
+                        BufferUsage::COPY_SRC | BufferUsage::MAP_WRITE
+                    },
                     mapped_at_creation: true,
                     ..Default::default()
                 },

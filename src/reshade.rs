@@ -14,7 +14,7 @@ use bevy::{
             BindGroup, RenderContext, RenderResourceBindings, RenderResourceContext,
             RenderResourceType, SamplerId, SharedBuffers,
         },
-        shader::{Shader, ShaderStage, ShaderStages},
+        shader::{Shader, ShaderStages},
         texture::{
             AddressMode, FilterMode, SamplerDescriptor, TextureDescriptor, TextureDimension,
             TextureFormat, TextureUsage,
@@ -34,17 +34,25 @@ impl Plugin for ReshadePlugin {
     }
 }
 
+#[cfg(feature = "web")]
+const VERTEX_SHADER_PATH: &str = "shaders/reshade.webgl2.vert";
+
+#[cfg(feature = "native")]
+const VERTEX_SHADER_PATH: &str = "shaders/reshade.wgpu.vert";
+
+#[cfg(feature = "web")]
+const FRAGMENT_SHADER_PATH: &str = "shaders/reshade.webgl2.frag";
+
+#[cfg(feature = "native")]
+const FRAGMENT_SHADER_PATH: &str = "shaders/reshade.wgpu.frag";
+
 fn setup_pipeline(
     asset_server: ResMut<AssetServer>,
-    mut shaders: ResMut<Assets<Shader>>,
     mut pipelines: ResMut<Assets<PipelineDescriptor>>,
 ) -> Handle<PipelineDescriptor> {
     let pipeline_handle = pipelines.add(PipelineDescriptor::default_config(ShaderStages {
-        vertex: shaders.add(Shader::from_glsl(
-            ShaderStage::Vertex,
-            include_str!("reshade.vert"),
-        )),
-        fragment: Some(asset_server.load::<Shader, _>("shaders/reshade.frag")),
+        vertex: asset_server.load::<Shader, _>(VERTEX_SHADER_PATH),
+        fragment: Some(asset_server.load::<Shader, _>(FRAGMENT_SHADER_PATH)),
     }));
     pipelines
         .get_mut(&pipeline_handle)
@@ -121,11 +129,10 @@ fn inject_into_render_graph(
 
 fn setup_reshade(
     asset_server: ResMut<AssetServer>,
-    shaders: ResMut<Assets<Shader>>,
     pipelines: ResMut<Assets<PipelineDescriptor>>,
     render_graph: ResMut<RenderGraph>,
 ) {
-    let pipeline_handle = setup_pipeline(asset_server, shaders, pipelines);
+    let pipeline_handle = setup_pipeline(asset_server, pipelines);
     inject_into_render_graph(render_graph, pipeline_handle);
 }
 
