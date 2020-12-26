@@ -299,13 +299,19 @@ impl Node for ReshadeNode {
         });
 
         let pipeline_specialization = Default::default();
-        let specialized_pipeline_handle = pipeline_compiler.compile_pipeline(
-            render_context.resources(),
-            &mut *pipeline_descriptors,
-            &mut *shaders,
-            &self.pipeline_handle,
-            &pipeline_specialization,
-        );
+        let specialized_pipeline_handle = if let Some(handle) = pipeline_compiler
+            .get_specialized_pipeline(&self.pipeline_handle, &pipeline_specialization)
+        {
+            handle
+        } else {
+            pipeline_compiler.compile_pipeline(
+                render_context.resources(),
+                &mut *pipeline_descriptors,
+                &mut *shaders,
+                &self.pipeline_handle,
+                &pipeline_specialization,
+            )
+        };
         let pipeline_descriptor = pipeline_descriptors
             .get(specialized_pipeline_handle.clone())
             .unwrap();
