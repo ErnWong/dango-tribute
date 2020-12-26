@@ -41,6 +41,7 @@ web-sys = {version = "0.3.45", features = [
   'WebGlUniformLocation',
   'WebGlActiveInfo',
   'WebGlVertexArrayObject',
+  'WebGlFramebuffer',
 ]}
 
 [dev-dependencies]

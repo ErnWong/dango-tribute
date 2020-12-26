@@ -19,12 +19,14 @@ use bevy::render::{
 use bevy::utils::HashMap;
 use bevy::window::Window;
 use parking_lot::RwLock;
-use std::{ops::Range, sync::Arc};
+use std::{cell::Cell, ops::Range, sync::Arc};
+
 #[derive(Clone)]
 pub struct WebGL2RenderResourceContext {
     pub device: Arc<Device>,
     pub resources: WebGL2Resources,
     pub pipeline_descriptors: Arc<RwLock<HashMap<Handle<PipelineDescriptor>, PipelineDescriptor>>>,
+    pub swap_chain_texture_id: Cell<TextureId>,
     initialized: bool,
 }
 
@@ -40,6 +42,7 @@ impl WebGL2RenderResourceContext {
             device,
             resources: WebGL2Resources::default(),
             pipeline_descriptors: Default::default(),
+            swap_chain_texture_id: Cell::new(TextureId::new()),
             initialized: false,
         }
     }
@@ -177,7 +180,9 @@ impl RenderResourceContext for WebGL2RenderResourceContext {
     }
 
     fn next_swap_chain_texture(&self, _window: &Window) -> TextureId {
-        TextureId::new()
+        // TODO: Do we need to change the texture id each time?
+        // self.swap_chain_texture_id.set(TextureId::new());
+        self.swap_chain_texture_id.get()
     }
 
     fn drop_swap_chain_texture(&self, _render_resource: TextureId) {}
@@ -193,6 +198,30 @@ impl RenderResourceContext for WebGL2RenderResourceContext {
         self.add_texture_descriptor(texture_id, texture_descriptor);
         let gl = &self.device.get_context();
         let texture = gl_call!(gl.create_texture()).unwrap();
+        gl_call!(gl.bind_texture(Gl::TEXTURE_2D, Some(&texture)));
+
+        // TODO: unsupported formats from texture_descriptor.
+        let level = 0;
+        let internal_format = Gl::RGBA;
+        let border = 0;
+        let format = internal_format;
+        let data_type = Gl::UNSIGNED_BYTE;
+        let pixels = None;
+        gl_call!(
+            gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
+                Gl::TEXTURE_2D,
+                level,
+                internal_format as i32,
+                texture_descriptor.size.width as i32,
+                texture_descriptor.size.height as i32,
+                border,
+                format,
+                data_type,
+                pixels,
+            )
+        )
+        .unwrap();
+
         self.resources.textures.write().insert(texture_id, texture);
         texture_id
     }

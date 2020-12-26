@@ -1,12 +1,16 @@
-use super::{Gl, WebGL2RenderResourceContext};
+use super::{Gl, WebGL2RenderResourceContext, WebGlFramebuffer};
 
 use crate::{gl_call, Buffer, WebGL2RenderPass};
 use bevy::render::{
-    pass::{LoadOp, Operations, PassDescriptor, RenderPass},
-    renderer::{BufferId, RenderContext, RenderResourceBindings, RenderResourceContext, TextureId},
+    pass::{LoadOp, Operations, PassDescriptor, RenderPass, TextureAttachment},
+    renderer::{
+        BufferId, RenderContext, RenderResourceBinding, RenderResourceBindings,
+        RenderResourceContext, TextureId,
+    },
     texture::Extent3d,
 };
 use std::sync::Arc;
+use std::unreachable;
 
 pub struct WebGL2RenderContext {
     pub device: Arc<crate::Device>,
@@ -116,10 +120,15 @@ impl RenderContext for WebGL2RenderContext {
         .expect("tex image");
         gl_call!(gl.generate_mipmap(Gl::TEXTURE_2D));
 
-        gl_call!(gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_MIN_FILTER, Gl::NEAREST as i32));
-        gl_call!(gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_MAG_FILTER, Gl::NEAREST as i32));
-        gl_call!(gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_WRAP_S, Gl::CLAMP_TO_EDGE as i32));
-        gl_call!(gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_WRAP_T, Gl::CLAMP_TO_EDGE as i32));
+        // PATCHED: For our specific use case.
+        gl_call!(gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_MIN_FILTER, Gl::LINEAR as i32));
+        gl_call!(gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_MAG_FILTER, Gl::LINEAR as i32));
+        gl_call!(gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_WRAP_S, Gl::REPEAT as i32));
+        gl_call!(gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_WRAP_T, Gl::REPEAT as i32));
+        // gl_call!(gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_MIN_FILTER, Gl::NEAREST as i32));
+        // gl_call!(gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_MAG_FILTER, Gl::NEAREST as i32));
+        // gl_call!(gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_WRAP_S, Gl::CLAMP_TO_EDGE as i32));
+        // gl_call!(gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_WRAP_T, Gl::CLAMP_TO_EDGE as i32));
 
         // gl_call!(gl.tex_parameteri(
         //     Gl::TEXTURE_2D,
@@ -145,11 +154,66 @@ impl RenderContext for WebGL2RenderContext {
     fn begin_pass(
         &mut self,
         pass_descriptor: &PassDescriptor,
-        _render_resource_bindings: &RenderResourceBindings,
+        render_resource_bindings: &RenderResourceBindings,
         run_pass: &mut dyn Fn(&mut dyn RenderPass),
     ) {
         let mut clear_mask = 0;
         let gl = &self.device.get_context();
+
+        match &pass_descriptor.color_attachments[0].attachment {
+            TextureAttachment::Id(texture_id)
+                if *texture_id == self.render_resource_context.swap_chain_texture_id.get() =>
+            {
+                // Normal render to canvas, aka swap chain.
+                // Unbind any framebuffer to use the original canvas framebuffer.
+                // gl_call!(gl.bind_framebuffer(Gl::FRAMEBUFFER, None));
+                gl_call!(gl.bind_framebuffer(Gl::FRAMEBUFFER, Option::<&WebGlFramebuffer>::None));
+            }
+            TextureAttachment::Input(_) =>
+                panic!("Any texture attachment that is mapped using the input slot name should have been replaced with the correct texture attachment by the graph executor"),
+            non_swap_chain_attachment => {
+                let textures = self.render_resource_context.resources.textures.read();
+                let texture_descriptors = self.render_resource_context.resources.texture_descriptors.read();
+                let (texture, texture_descriptor) = match non_swap_chain_attachment {
+                    TextureAttachment::Id(texture_id) => (
+                        textures.get(&texture_id).unwrap(),
+                        texture_descriptors.get(&texture_id).unwrap(),
+                    ),
+                    TextureAttachment::Name(name) => {
+                        let texture_id = match render_resource_bindings.get(&name).unwrap() {
+                            RenderResourceBinding::Texture(texture_id) => texture_id,
+                            _ => panic!("attachment {} does not exist", name),
+                        };
+                        (
+                            textures.get(&texture_id).unwrap(),
+                            texture_descriptors.get(&texture_id).unwrap(),
+                        )
+                    }
+                    _ => unreachable!(),
+                };
+                // TODO: This should only be set depending on the sampler descriptor.
+                gl_call!(gl.bind_texture(Gl::TEXTURE_2D, Some(texture)));
+                gl_call!(gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_MIN_FILTER, Gl::LINEAR as i32));
+
+                let framebuffer = gl_call!(gl.create_framebuffer()).unwrap();
+                gl_call!(gl.bind_framebuffer(Gl::FRAMEBUFFER, Some(&framebuffer)));
+                gl_call!(gl.viewport(
+                    0,
+                    0,
+                    texture_descriptor.size.width as i32,
+                    texture_descriptor.size.height as i32,
+                ));
+                gl_call!(gl.framebuffer_texture_2d(
+                    Gl::FRAMEBUFFER,
+                    Gl::COLOR_ATTACHMENT0,
+                    Gl::TEXTURE_2D,
+                    Some(texture),
+                    0,
+                ));
+                let framebuffer_status = gl_call!(gl.check_framebuffer_status(Gl::FRAMEBUFFER));
+                assert!(framebuffer_status== Gl::FRAMEBUFFER_COMPLETE, "Framebuffer is not complete yet: {}", framebuffer_status);
+            }
+        }
 
         if let LoadOp::Clear(c) = pass_descriptor.color_attachments[0].ops.load {
             gl_call!(gl.clear_color(c.r(), c.g(), c.b(), c.a()));

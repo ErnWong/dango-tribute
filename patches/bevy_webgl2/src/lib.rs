@@ -151,8 +151,9 @@ pub fn webgl2_render_system(resources: &mut Resources) -> impl FnMut(&mut World,
 macro_rules! gl_call {
     ($device:ident . $func:ident ( $( $i:expr),* $(,)? ) ) => {
         {
-            // trace!("gl call: {} {:?}", stringify!($func ( $( $i ),*)), ( $( $i ),*) );
+            // bevy::log::info!("gl call: {} {:?}", stringify!($func ( $( $i ),*)), ( $( $i ),*) );
             let result = $device . $func( $( $i ),* );
+            // if $device.get_error() > 0 { panic!(); }
             result
         }
     };
