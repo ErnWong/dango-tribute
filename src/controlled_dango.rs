@@ -129,7 +129,7 @@ impl ControlledDangoComponent {
             } else {
                 state.config.horizontal_crawling_movement_force
             };
-        state.lock_rotation = !roll && !in_air;
+        state.lock_rotation = !roll;
         state.is_crawling = !roll && !in_air;
         state.applying_drag = !in_air;
         state.center_of_mass = Vector2::new(translation.x, translation.y);
