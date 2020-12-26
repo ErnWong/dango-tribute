@@ -36,7 +36,6 @@ vec4 rand(vec2 pos, float page) {
     vec2 page_based_offset = page * PAGE_OFFSET_DIRECTION;
 
     vec2 uv = pos2uv(pos + time_based_offset + page_based_offset);
-    uv = mod(uv, 1.0);
     return read_texture(i_random, uv);
 }
 
