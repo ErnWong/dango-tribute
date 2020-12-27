@@ -4,9 +4,6 @@ use bevy::{
     render::{pass::ClearColor, render_graph::base::BaseRenderGraphConfig},
 };
 
-#[cfg(feature = "debug-fly-camera")]
-use bevy_fly_camera::{FlyCamera, FlyCameraPlugin};
-
 use bevy_prototype_lyon::prelude::*;
 use nphysics2d::{
     nalgebra::Vector2,
@@ -14,26 +11,39 @@ use nphysics2d::{
     object::{BodyStatus, ColliderDesc, RigidBodyDesc},
 };
 
-mod controlled_dango;
-mod dango;
-mod physics;
-mod reshade;
-mod transform_tracking;
-mod window_random_texture_node;
+use bevy_prototype_frameshader::FrameshaderPlugin;
+use bevy_prototype_transform_tracker::{
+    TransformTrackingFollower, TransformTrackingPlugin, TransformTrackingTarget,
+};
+
+#[cfg(feature = "debug-fly-camera")]
+use bevy_fly_camera::{FlyCamera, FlyCameraPlugin};
 
 #[cfg(feature = "web")]
 use bevy_webgl2;
 
+mod controlled_dango;
+mod dango;
+mod physics;
+
 use controlled_dango::{ControlledDangoComponent, ControlledDangoPlugin};
 use dango::{colors::*, DangoDescriptorComponent, DangoPlugin};
 use physics::PhysicsPlugin;
-use reshade::ReshadePlugin;
-use transform_tracking::{
-    TransformTrackingFollower, TransformTrackingPlugin, TransformTrackingTarget,
-};
 
 pub const GRAVITY: f32 = -9.81 * 1.5;
 pub type RealField = f32;
+
+#[cfg(feature = "web")]
+const VERTEX_SHADER_PATH: &str = "shaders/frameshader.webgl2.vert";
+
+#[cfg(feature = "native")]
+const VERTEX_SHADER_PATH: &str = "shaders/frameshader.wgpu.vert";
+
+#[cfg(feature = "web")]
+const FRAGMENT_SHADER_PATH: &str = "shaders/frameshader.webgl2.frag";
+
+#[cfg(feature = "native")]
+const FRAGMENT_SHADER_PATH: &str = "shaders/frameshader.wgpu.frag";
 
 fn main() {
     let mut app = App::build();
@@ -78,7 +88,10 @@ fn main() {
 
     app.add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(PrintDiagnosticsPlugin::default())
-        .add_plugin(ReshadePlugin)
+        .add_plugin(FrameshaderPlugin::new(
+            VERTEX_SHADER_PATH.into(),
+            FRAGMENT_SHADER_PATH.into(),
+        ))
         .add_plugin(TransformTrackingPlugin)
         .add_plugin(PhysicsPlugin::new(Vector2::new(0.0, GRAVITY)))
         .add_plugin(DangoPlugin)

@@ -10,35 +10,44 @@ CARGO_MANIFEST_DIR = "${CARGO_MAKE_WORKING_DIRECTORY}"
 CARGO_RELEASE_ARGS = "--release"
 
 [tasks.show-env]
+workspace = false
 command = "env"
 
 [tasks.basic-http-server]
+workspace = false
 install_crate = {crate_name = "basic-http-server", binary = "basic-http-server", test_arg="--help"}
 
 [tasks.wasm-bindgen-cli]
+workspace = false
 install_crate = {crate_name = "wasm-bindgen-cli", binary = "wasm-bindgen", test_arg="--help"}
 
 [tasks.cargo-build-web]
+workspace = false
 args = ["build", "--target", "wasm32-unknown-unknown", "--features", "web", "@@split(CARGO_RELEASE_ARGS, )"]
 command = "cargo"
 
 [tasks.build-web]
+workspace = false
 args = ["--out-dir", "${TARGET_DIR}", "--out-name", "wasm", "--target", "web", "--no-typescript", "${CARGO_WASM_PATH}"]
 command = "wasm-bindgen"
 dependencies = ["cargo-build-web", "wasm-bindgen-cli"]
 
 [tasks.build-native]
+workspace = false
 args = ["build", "--features", "native", "@@split(CARGO_RELEASE_ARGS, )"]
 command = "cargo"
 
 [tasks.run]
+workspace = false
 command = "${CARGO_TARGET_DIR}/${ENV_DIR}/${CARGO_MAKE_BINARY_EXECUTABLE_NAME}"
 dependencies = ["build-native"]
 
 [tasks.serve]
+workspace = false
 command = "basic-http-server"
 args = ["-x"]
 dependencies = ["build-web", "basic-http-server"]
 
 [tasks.test]
+workspace = false
 disabled = true

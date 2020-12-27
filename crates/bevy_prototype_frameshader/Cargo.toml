@@ -1,0 +1,9 @@
+[package]
+name = "bevy_prototype_frameshader"
+version = "0.1.0"
+authors = ["Ernest Wong <sudo@ernestwong.nz>"]
+edition = "2018"
+
+[dependencies]
+bevy = {version = "0.4", default-features = false}
+bevy_prototype_window_random_texture_node = {path = "../bevy_prototype_window_random_texture_node"}

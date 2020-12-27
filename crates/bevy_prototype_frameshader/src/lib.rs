@@ -24,35 +24,38 @@ use bevy::{
 };
 use std::borrow::Cow;
 
-use super::window_random_texture_node::WindowRandomTextureNode;
+use bevy_prototype_window_random_texture_node::WindowRandomTextureNode;
 
-pub struct ReshadePlugin;
+#[derive(Clone)]
+pub struct FrameshaderPlugin {
+    vertex_shader_path: String,
+    fragment_shader_path: String,
+}
 
-impl Plugin for ReshadePlugin {
-    fn build(&self, app: &mut AppBuilder) {
-        app.add_startup_system(setup_reshade.system());
+impl FrameshaderPlugin {
+    pub fn new(vertex_shader_path: String, fragment_shader_path: String) -> Self {
+        Self {
+            vertex_shader_path,
+            fragment_shader_path,
+        }
     }
 }
 
-#[cfg(feature = "web")]
-const VERTEX_SHADER_PATH: &str = "shaders/reshade.webgl2.vert";
-
-#[cfg(feature = "native")]
-const VERTEX_SHADER_PATH: &str = "shaders/reshade.wgpu.vert";
-
-#[cfg(feature = "web")]
-const FRAGMENT_SHADER_PATH: &str = "shaders/reshade.webgl2.frag";
-
-#[cfg(feature = "native")]
-const FRAGMENT_SHADER_PATH: &str = "shaders/reshade.wgpu.frag";
+impl Plugin for FrameshaderPlugin {
+    fn build(&self, app: &mut AppBuilder) {
+        app.resources_mut().insert(self.clone());
+        app.add_startup_system(setup_frameshader.system());
+    }
+}
 
 fn setup_pipeline(
+    config: Res<FrameshaderPlugin>,
     asset_server: ResMut<AssetServer>,
     mut pipelines: ResMut<Assets<PipelineDescriptor>>,
 ) -> Handle<PipelineDescriptor> {
     let pipeline_handle = pipelines.add(PipelineDescriptor::default_config(ShaderStages {
-        vertex: asset_server.load::<Shader, _>(VERTEX_SHADER_PATH),
-        fragment: Some(asset_server.load::<Shader, _>(FRAGMENT_SHADER_PATH)),
+        vertex: asset_server.load::<Shader, _>(config.vertex_shader_path.as_str()),
+        fragment: Some(asset_server.load::<Shader, _>(config.fragment_shader_path.as_str())),
     }));
     pipelines
         .get_mut(&pipeline_handle)
@@ -66,7 +69,7 @@ fn inject_into_render_graph(
     pipeline_handle: Handle<PipelineDescriptor>,
 ) {
     render_graph.add_node(
-        "reshade_source_texture",
+        "frameshader_source_texture",
         WindowTextureNode::new(
             WindowId::primary(),
             TextureDescriptor {
@@ -78,7 +81,7 @@ fn inject_into_render_graph(
         ),
     );
     render_graph.add_node(
-        "reshade_random_texture",
+        "frameshader_random_texture",
         WindowRandomTextureNode::new(
             WindowId::primary(),
             TextureDescriptor {
@@ -89,10 +92,10 @@ fn inject_into_render_graph(
             },
         ),
     );
-    render_graph.add_system_node("reshade", ReshadeNode::new(pipeline_handle));
+    render_graph.add_system_node("frameshader", FrameshaderNode::new(pipeline_handle));
     render_graph
         .add_slot_edge(
-            "reshade_source_texture",
+            "frameshader_source_texture",
             WindowTextureNode::OUT_TEXTURE,
             node::MAIN_PASS,
             "color_attachment", // TODO: msaa, color_resolve_target
@@ -100,17 +103,17 @@ fn inject_into_render_graph(
         .unwrap();
     render_graph
         .add_slot_edge(
-            "reshade_source_texture",
+            "frameshader_source_texture",
             WindowTextureNode::OUT_TEXTURE,
-            "reshade",
+            "frameshader",
             "source_texture",
         )
         .unwrap();
     render_graph
         .add_slot_edge(
-            "reshade_random_texture",
+            "frameshader_random_texture",
             WindowTextureNode::OUT_TEXTURE,
-            "reshade",
+            "frameshader",
             "random_texture",
         )
         .unwrap();
@@ -118,31 +121,32 @@ fn inject_into_render_graph(
         .add_slot_edge(
             node::PRIMARY_SWAP_CHAIN,
             WindowSwapChainNode::OUT_TEXTURE,
-            "reshade",
+            "frameshader",
             "color_attachment", // TODO: msaa, color_resolve_target
         )
         .unwrap();
     render_graph
-        .add_node_edge(node::MAIN_PASS, "reshade")
+        .add_node_edge(node::MAIN_PASS, "frameshader")
         .unwrap();
 }
 
-fn setup_reshade(
+fn setup_frameshader(
+    config: Res<FrameshaderPlugin>,
     asset_server: ResMut<AssetServer>,
     pipelines: ResMut<Assets<PipelineDescriptor>>,
     render_graph: ResMut<RenderGraph>,
 ) {
-    let pipeline_handle = setup_pipeline(asset_server, pipelines);
+    let pipeline_handle = setup_pipeline(config, asset_server, pipelines);
     inject_into_render_graph(render_graph, pipeline_handle);
 }
 
-pub struct ReshadeNode {
+pub struct FrameshaderNode {
     pipeline_handle: Handle<PipelineDescriptor>,
     sampler: Option<SamplerId>,
     pass_descriptor: PassDescriptor,
 }
 
-impl ReshadeNode {
+impl FrameshaderNode {
     // TODO: remove hardcoded indices (should match input() return value).
     pub const IN_SOURCE_COLOR_TEXTURE: &'static str = "source_texture";
     pub const IN_SOURCE_COLOR_TEXTURE_INDEX: usize = 0;
@@ -151,8 +155,8 @@ impl ReshadeNode {
     pub const IN_TARGET_COLOR_TEXTURE: &'static str = "color_attachment";
     pub const IN_TARGET_COLOR_TEXTURE_INDEX: usize = 2;
 
-    pub fn new(pipeline_handle: Handle<PipelineDescriptor>) -> ReshadeNode {
-        ReshadeNode {
+    pub fn new(pipeline_handle: Handle<PipelineDescriptor>) -> FrameshaderNode {
+        FrameshaderNode {
             pipeline_handle,
             sampler: None,
             pass_descriptor: PassDescriptor {
@@ -171,9 +175,9 @@ impl ReshadeNode {
     }
 }
 
-impl SystemNode for ReshadeNode {
+impl SystemNode for FrameshaderNode {
     fn get_system(&self, commands: &mut Commands) -> Box<dyn System<In = (), Out = ()>> {
-        let system = reshade_node_system.system();
+        let system = frameshader_node_system.system();
         commands.insert_resource(InfoBindGroup {
             bind_group: BindGroup::build().finish(),
         });
@@ -185,7 +189,7 @@ struct InfoBindGroup {
     bind_group: BindGroup,
 }
 
-fn reshade_node_system(
+fn frameshader_node_system(
     render_resource_context: Res<Box<dyn RenderResourceContext>>,
     mut shared_buffers: ResMut<SharedBuffers>,
     mut info_bind_group: ResMut<InfoBindGroup>,
@@ -228,19 +232,19 @@ fn reshade_node_system(
         .finish();
 }
 
-impl Node for ReshadeNode {
+impl Node for FrameshaderNode {
     fn input(&self) -> &[ResourceSlotInfo] {
         static INPUT: &[ResourceSlotInfo] = &[
             ResourceSlotInfo {
-                name: Cow::Borrowed(ReshadeNode::IN_SOURCE_COLOR_TEXTURE),
+                name: Cow::Borrowed(FrameshaderNode::IN_SOURCE_COLOR_TEXTURE),
                 resource_type: RenderResourceType::Texture,
             },
             ResourceSlotInfo {
-                name: Cow::Borrowed(ReshadeNode::IN_SOURCE_RANDOM_TEXTURE),
+                name: Cow::Borrowed(FrameshaderNode::IN_SOURCE_RANDOM_TEXTURE),
                 resource_type: RenderResourceType::Texture,
             },
             ResourceSlotInfo {
-                name: Cow::Borrowed(ReshadeNode::IN_TARGET_COLOR_TEXTURE),
+                name: Cow::Borrowed(FrameshaderNode::IN_TARGET_COLOR_TEXTURE),
                 resource_type: RenderResourceType::Texture,
             },
         ];
@@ -256,12 +260,12 @@ impl Node for ReshadeNode {
         _output: &mut ResourceSlots,
     ) {
         let source_texture = input
-            .get(ReshadeNode::IN_SOURCE_COLOR_TEXTURE_INDEX)
+            .get(FrameshaderNode::IN_SOURCE_COLOR_TEXTURE_INDEX)
             .unwrap()
             .get_texture()
             .unwrap();
         let random_texture = input
-            .get(ReshadeNode::IN_SOURCE_RANDOM_TEXTURE_INDEX)
+            .get(FrameshaderNode::IN_SOURCE_RANDOM_TEXTURE_INDEX)
             .unwrap()
             .get_texture()
             .unwrap();
@@ -340,7 +344,7 @@ impl Node for ReshadeNode {
         // Update pass descriptor to reflect current texture Ids from the input slots.
         self.pass_descriptor.color_attachments[0].attachment = TextureAttachment::Id(
             input
-                .get(ReshadeNode::IN_TARGET_COLOR_TEXTURE_INDEX)
+                .get(FrameshaderNode::IN_TARGET_COLOR_TEXTURE_INDEX)
                 .unwrap()
                 .get_texture()
                 .unwrap(),

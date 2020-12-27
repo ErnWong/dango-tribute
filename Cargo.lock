@@ -570,12 +570,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_prototype_frameshader"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy_prototype_window_random_texture_node",
+]
+
+[[package]]
 name = "bevy_prototype_lyon"
 version = "0.1.3"
 source = "git+https://github.com/Nilirad/bevy_prototype_lyon?branch=master#a18a305027a85ebb621c1096136f5edb8cd9eeb5"
 dependencies = [
  "bevy",
  "lyon",
+]
+
+[[package]]
+name = "bevy_prototype_transform_tracker"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+]
+
+[[package]]
+name = "bevy_prototype_window_random_texture_node"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "rand 0.8.0",
 ]
 
 [[package]]
@@ -776,8 +799,10 @@ version = "0.4.0"
 dependencies = [
  "bevy",
  "cfg-if 1.0.0",
+ "compile-time-run",
  "js-sys",
  "parking_lot",
+ "rand 0.7.3",
  "regex",
  "wasm-bindgen",
  "web-sys",
@@ -965,12 +990,13 @@ dependencies = [
  "bevy",
  "bevy-contrib-inspector",
  "bevy_fly_camera",
+ "bevy_prototype_frameshader",
  "bevy_prototype_lyon",
+ "bevy_prototype_transform_tracker",
  "bevy_webgl2",
  "lyon",
  "nphysics2d",
  "num",
- "rand 0.8.0",
  "splines",
  "winit",
 ]
@@ -1073,6 +1099,17 @@ dependencies = [
  "bytes",
  "memchr",
  "pin-project-lite 0.1.11",
+]
+
+[[package]]
+name = "compile-time-run"
+version = "0.2.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b734f015dfba1d19a262f4a1d4429d01d4e484099a5ecebde2ba771dea9430a1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
