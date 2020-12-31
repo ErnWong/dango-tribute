@@ -112,8 +112,10 @@ pub fn physics_multiplayer_client_sync_system(
         for player_id in to_spawn {
             info!("Spawning player {:?}", player_id);
             let player_state = new_player_states.get(player_id).unwrap();
+            let mut transform = Transform::default();
+            update_transform(&mut transform, player_state);
             let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-            update_mesh(&mut mesh, player_state);
+            update_mesh(&mut mesh, player_state, &transform);
             let entity = commands
                 .spawn(PlayerBundle {
                     sprite: Sprite {
@@ -131,15 +133,7 @@ pub fn physics_multiplayer_client_sync_system(
                     render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
                         SPRITE_PIPELINE_HANDLE.typed(),
                     )]),
-                    transform: Transform {
-                        translation: Vec3::new(
-                            player_state.derived_measurements.center_of_mass.x,
-                            player_state.derived_measurements.center_of_mass.y,
-                            0.0,
-                        ),
-                        scale: Vec3::new(player_state.size, player_state.size, 1.0),
-                        ..Default::default()
-                    },
+                    transform: transform,
                     global_transform: GlobalTransform::default(),
                     player: PlayerComponent,
                 })
@@ -162,24 +156,34 @@ pub fn physics_multiplayer_client_sync_system(
             let entity = player_map.0.get(player_id).unwrap();
             if let Ok((_, mesh_handle, mut transform)) = query.get_mut(*entity) {
                 info!("Updating player {:?}", player_id);
-                transform.translation.x = player_state.derived_measurements.center_of_mass.x;
-                transform.translation.y = player_state.derived_measurements.center_of_mass.y;
-
+                update_transform(&mut transform, player_state);
                 let mesh = meshes.get_mut(mesh_handle).unwrap();
-                update_mesh(mesh, player_state);
+                update_mesh(mesh, player_state, &transform);
             }
         }
     }
 }
 
-fn update_mesh(mesh: &mut Mesh, player_state: &PlayerState) {
+fn update_transform(transform: &mut Transform, player_state: &PlayerState) {
+    transform.scale = Vec3::one() * player_state.size;
+    transform.translation.x = player_state.derived_measurements.center_of_mass.x;
+    transform.translation.y = player_state.derived_measurements.center_of_mass.y;
+}
+
+fn update_mesh(mesh: &mut Mesh, player_state: &PlayerState, transform: &Transform) {
+    let to_local_coords = transform.compute_matrix().inverse();
+
     mesh.set_indices(Some(Indices::U32(player_state.derived_indices.clone())));
     mesh.set_attribute(
         Mesh::ATTRIBUTE_POSITION,
         player_state
             .positions
             .chunks(2)
-            .map(|pos| [pos[0], pos[1], 0.0])
+            .map(|pos| {
+                to_local_coords
+                    .transform_point3(Vec3::new(pos[0], pos[1], 0.0))
+                    .into()
+            })
             .collect::<Vec<[f32; 3]>>(),
     );
 
