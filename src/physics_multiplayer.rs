@@ -11,7 +11,8 @@ use nphysics2d::{
     force_generator::DefaultForceGeneratorSet,
     joint::DefaultJointConstraintSet,
     nalgebra::Vector2,
-    object::{DefaultBodySet, DefaultColliderSet},
+    ncollide2d::shape::{Cuboid, ShapeHandle},
+    object::{BodyPartHandle, ColliderDesc, DefaultBodySet, DefaultColliderSet, Ground},
     world::{DefaultGeometricalWorld, DefaultMechanicalWorld},
 };
 use serde::{Deserialize, Serialize};
@@ -64,6 +65,14 @@ impl Default for PhysicsWorld {
         };
 
         physics_world.mechanical_world.set_timestep(super::TIMESTEP);
+
+        // TODO: Source from a scene.
+        let ground = physics_world.bodies.insert(Ground::new());
+        physics_world.colliders.insert(
+            ColliderDesc::<RealField>::new(ShapeHandle::new(Cuboid::new(Vector2::new(500.0, 5.0))))
+                .translation(Vector2::new(500.0 - 30.0, 5.0 - 15.0))
+                .build(BodyPartHandle(ground, 0)),
+        );
 
         physics_world
     }
