@@ -860,10 +860,8 @@ version = "0.4.0"
 dependencies = [
  "bevy",
  "cfg-if 1.0.0",
- "compile-time-run",
  "js-sys",
  "parking_lot",
- "rand 0.7.3",
  "regex",
  "wasm-bindgen",
  "web-sys",
@@ -1069,11 +1067,14 @@ dependencies = [
  "bevy_fly_camera",
  "bevy_prototype_frameshader",
  "bevy_prototype_lyon",
+ "bevy_prototype_networked_physics",
  "bevy_prototype_transform_tracker",
  "bevy_webgl2",
  "lyon",
+ "nalgebra",
  "nphysics2d",
  "num",
+ "serde",
  "splines",
  "winit",
 ]
@@ -1176,17 +1177,6 @@ dependencies = [
  "bytes 0.5.6",
  "memchr",
  "pin-project-lite 0.1.11",
-]
-
-[[package]]
-name = "compile-time-run"
-version = "0.2.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b734f015dfba1d19a262f4a1d4429d01d4e484099a5ecebde2ba771dea9430a1"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -2765,6 +2755,7 @@ dependencies = [
  "num-traits",
  "rand 0.7.3",
  "rand_distr",
+ "serde",
  "simba",
  "typenum",
 ]
@@ -2923,8 +2914,6 @@ dependencies = [
 [[package]]
 name = "nphysics2d"
 version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fbd4cc05962263ce256dcc2c03c105fb4c78522e67f6b15a25ea00efe730185"
 dependencies = [
  "approx",
  "bitflags",
@@ -2974,6 +2963,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "747d632c0c558b87dbabbe6a82f3b4ae03720d0646ac5b7b4dae89394be5f2c5"
 dependencies = [
  "num-traits",
+ "serde",
 ]
 
 [[package]]

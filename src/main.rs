@@ -12,6 +12,15 @@ use nphysics2d::{
 };
 
 use bevy_prototype_frameshader::FrameshaderPlugin;
+
+use bevy_prototype_networked_physics::Config as NetworkedPhysicsConfig;
+
+#[cfg(any(feature = "web", feature = "native"))]
+use bevy_prototype_networked_physics::NetworkedPhysicsClientPlugin;
+
+#[cfg(feature = "server")]
+use bevy_prototype_networked_physics::NetworkedPhysicsServerPlugin;
+
 use bevy_prototype_transform_tracker::{
     TransformTrackingFollower, TransformTrackingPlugin, TransformTrackingTarget,
 };
@@ -25,13 +34,21 @@ use bevy_webgl2;
 mod controlled_dango;
 mod dango;
 mod physics;
+mod physics_multiplayer;
+mod physics_multiplayer_sync;
+mod player;
+mod player_input;
 
-use controlled_dango::{ControlledDangoComponent, ControlledDangoPlugin};
-use dango::{colors::*, DangoDescriptorComponent, DangoPlugin};
-use physics::PhysicsPlugin;
+use dango::{colors::*, DangoDescriptorComponent};
+use physics_multiplayer::PhysicsWorld;
 
+pub const TIMESTEP: f32 = 1.0 / 60.0;
 pub const GRAVITY: f32 = -9.81 * 1.5;
 pub type RealField = f32;
+pub const NETWORKED_PHYSICS_CONFIG: NetworkedPhysicsConfig = NetworkedPhysicsConfig {
+    timestep_seconds: TIMESTEP,
+    ..NetworkedPhysicsConfig::new()
+};
 
 #[cfg(feature = "web")]
 const VERTEX_SHADER_PATH: &str = "shaders/frameshader.webgl2.vert";
@@ -83,6 +100,16 @@ fn main() {
     #[cfg(feature = "web")]
     app.add_plugin(bevy_webgl2::WebGL2Plugin);
 
+    #[cfg(any(feature = "web", feature = "native"))]
+    app.add_plugin(NetworkedPhysicsClientPlugin::<PhysicsWorld>::new(
+        NETWORKED_PHYSICS_CONFIG,
+    ));
+
+    #[cfg(feature = "server")]
+    app.add_plugin(NetworkedPhysicsServerPlugin::<PhysicsWorld>::new(
+        NETWORKED_PHYSICS_CONFIG,
+    ));
+
     // Order is important.
     // The above plugins provide resources for the plugins below.
 
@@ -93,10 +120,12 @@ fn main() {
             FRAGMENT_SHADER_PATH.into(),
         ))
         .add_plugin(TransformTrackingPlugin)
-        .add_plugin(PhysicsPlugin::new(Vector2::new(0.0, GRAVITY)))
-        .add_plugin(DangoPlugin)
-        .add_plugin(ControlledDangoPlugin)
-        .add_startup_system(setup.system());
+        .add_system(player_input::player_input_system.system())
+        .add_system(physics_multiplayer_sync::physics_multiplayer_sync_system.system());
+    //.add_plugin(PhysicsPlugin::new(Vector2::new(0.0, GRAVITY)))
+    //.add_plugin(DangoPlugin)
+    //.add_plugin(ControlledDangoPlugin)
+    //.add_startup_system(setup.system());
 
     #[cfg(feature = "debug-fly-camera")]
     app.add_plugin(FlyCameraPlugin);
@@ -201,6 +230,5 @@ fn setup(
             size: 0.5,
             color: DANGO_GREEN,
         },))
-        .with(ControlledDangoComponent::default())
         .with(TransformTrackingTarget);
 }
