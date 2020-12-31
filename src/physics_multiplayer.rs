@@ -96,6 +96,9 @@ impl World for PhysicsWorld {
                 x,
                 y,
             } => {
+                if let Some(existing_player) = self.players.get(player_id) {
+                    existing_player.deregister(&mut self.bodies, &mut self.colliders);
+                }
                 self.players.insert(
                     *player_id,
                     Player::new(
