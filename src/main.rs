@@ -35,7 +35,7 @@ mod controlled_dango;
 mod dango;
 mod physics;
 mod physics_multiplayer;
-mod physics_multiplayer_sync;
+mod physics_multiplayer_systems;
 mod player;
 mod player_input;
 
@@ -120,8 +120,15 @@ fn main() {
             FRAGMENT_SHADER_PATH.into(),
         ))
         .add_plugin(TransformTrackingPlugin)
-        .add_system(player_input::player_input_system.system())
-        .add_system(physics_multiplayer_sync::physics_multiplayer_sync_system.system());
+        .add_system(player_input::player_input_system.system());
+
+    #[cfg(any(feature = "web", feature = "native"))]
+    app.add_system(physics_multiplayer_systems::physics_multiplayer_client_sync_system.system())
+        .add_system(physics_multiplayer_systems::physics_multiplayer_client_spawn_system.system());
+
+    #[cfg(feature = "server")]
+    app.add_system(physics_multiplayer_systems::physics_multiplayer_server_despawn_system.system());
+
     //.add_plugin(PhysicsPlugin::new(Vector2::new(0.0, GRAVITY)))
     //.add_plugin(DangoPlugin)
     //.add_plugin(ControlledDangoPlugin)

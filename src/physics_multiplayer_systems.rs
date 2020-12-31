@@ -1,4 +1,7 @@
-use super::{physics_multiplayer::PhysicsWorld, player::PlayerId};
+use super::{
+    physics_multiplayer::{PhysicsCommand, PhysicsWorld},
+    player::PlayerId,
+};
 use bevy::{
     prelude::*,
     render::{
@@ -8,9 +11,66 @@ use bevy::{
     },
     sprite::SPRITE_PIPELINE_HANDLE,
 };
-use bevy_prototype_networked_physics::client::{Client, ClientState};
+use bevy_prototype_networked_physics::{
+    client::{Client, ClientState},
+    events::ClientConnectionEvent,
+    net::NetworkResource,
+    server::Server,
+};
 use bevy_prototype_transform_tracker::TransformTrackingTarget;
 use std::collections::{HashMap, HashSet};
+
+#[derive(Default)]
+pub struct SpawnSystemState {
+    client_connection_event_reader: EventReader<ClientConnectionEvent>,
+}
+
+pub fn physics_multiplayer_client_spawn_system(
+    mut state: Local<SpawnSystemState>,
+    mut client: ResMut<Client<PhysicsWorld>>,
+    client_connection_events: Res<Events<ClientConnectionEvent>>,
+    mut net: ResMut<NetworkResource>,
+) {
+    for client_connection_event in state
+        .client_connection_event_reader
+        .iter(&client_connection_events)
+    {
+        if let ClientConnectionEvent::Connected(client_id) = client_connection_event {
+            if let ClientState::Ready(ready_client) = client.state_mut() {
+                ready_client.issue_command(
+                    PhysicsCommand::SpawnPlayer {
+                        player_id: PlayerId(*client_id),
+                        // TODO: Dynamically chosen...
+                        size: 0.8,
+                        x: 0.0,
+                        y: 0.0,
+                        color: Color::RED,
+                    },
+                    &mut net,
+                );
+            }
+        }
+    }
+}
+
+pub fn physics_multiplayer_server_despawn_system(
+    mut state: Local<SpawnSystemState>,
+    mut server: ResMut<Server<PhysicsWorld>>,
+    client_connection_events: Res<Events<ClientConnectionEvent>>,
+    mut net: ResMut<NetworkResource>,
+) {
+    for client_connection_event in state
+        .client_connection_event_reader
+        .iter(&client_connection_events)
+    {
+        if let ClientConnectionEvent::Disconnected(client_id) = client_connection_event {
+            server.issue_command(
+                PhysicsCommand::DespawnPlayer(PlayerId(*client_id)),
+                &mut net,
+            );
+        }
+    }
+}
 
 #[derive(Bundle)]
 pub struct PlayerBundle {
@@ -32,7 +92,7 @@ pub struct PlayerComponent;
 #[derive(Default)]
 pub struct PlayerMap(HashMap<PlayerId, Entity>);
 
-pub fn physics_multiplayer_sync_system(
+pub fn physics_multiplayer_client_sync_system(
     mut player_map: Local<PlayerMap>,
     commands: &mut Commands,
     client: Res<Client<PhysicsWorld>>,
