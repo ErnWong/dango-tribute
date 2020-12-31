@@ -1,4 +1,4 @@
-use super::{
+use crate::{
     physics_multiplayer::{PhysicsCommand, PhysicsWorld},
     player::PlayerId,
 };

@@ -1059,27 +1059,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "christmas-2020"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "bevy-contrib-inspector",
- "bevy_fly_camera",
- "bevy_prototype_frameshader",
- "bevy_prototype_lyon",
- "bevy_prototype_networked_physics",
- "bevy_prototype_transform_tracker",
- "bevy_webgl2",
- "lyon",
- "nalgebra",
- "nphysics2d",
- "num",
- "serde",
- "splines",
- "winit",
-]
-
-[[package]]
 name = "chrono"
 version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1107,6 +1086,22 @@ dependencies = [
  "glob",
  "libc",
  "libloading",
+]
+
+[[package]]
+name = "client"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy-contrib-inspector",
+ "bevy_fly_camera",
+ "bevy_prototype_frameshader",
+ "bevy_prototype_lyon",
+ "bevy_prototype_networked_physics",
+ "bevy_prototype_transform_tracker",
+ "bevy_webgl2",
+ "shared",
+ "winit",
 ]
 
 [[package]]
@@ -3664,6 +3659,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "server"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy_prototype_networked_physics",
+ "shared",
+]
+
+[[package]]
 name = "sha1"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3697,6 +3701,21 @@ checksum = "7b4921be914e16899a80adefb821f8ddb7974e3f1250223575a44ed994882127"
 dependencies = [
  "lazy_static",
  "loom",
+]
+
+[[package]]
+name = "shared"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy_prototype_networked_physics",
+ "bevy_prototype_transform_tracker",
+ "lyon",
+ "nalgebra",
+ "nphysics2d",
+ "num",
+ "serde",
+ "splines",
 ]
 
 [[package]]

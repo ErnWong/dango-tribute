@@ -1,6 +1,7 @@
-use super::{
+use crate::{
     player::{Player, PlayerId, PlayerInputCommand, PlayerState},
-    RealField,
+    settings,
+    settings::RealField,
 };
 use bevy::prelude::*;
 use bevy_prototype_networked_physics::{
@@ -54,7 +55,7 @@ impl Default for PhysicsWorld {
         let mut physics_world = Self {
             mechanical_world: DefaultMechanicalWorld::<RealField>::new(Vector2::new(
                 0.0,
-                super::GRAVITY,
+                settings::GRAVITY,
             )),
             geometrical_world: DefaultGeometricalWorld::<RealField>::new(),
             bodies: DefaultBodySet::<RealField>::new(),
@@ -64,7 +65,9 @@ impl Default for PhysicsWorld {
             players: HashMap::new(),
         };
 
-        physics_world.mechanical_world.set_timestep(super::TIMESTEP);
+        physics_world
+            .mechanical_world
+            .set_timestep(settings::TIMESTEP);
 
         // TODO: Source from a scene.
         let ground = physics_world.bodies.insert(Ground::new());

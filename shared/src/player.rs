@@ -1,4 +1,4 @@
-use super::RealField;
+use crate::settings::RealField;
 use bevy::prelude::*;
 use bevy_prototype_networked_physics::world::State;
 use lyon::tessellation::{basic_shapes::fill_circle, BuffersBuilder, FillOptions, VertexBuffers};

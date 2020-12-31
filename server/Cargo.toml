@@ -1,0 +1,15 @@
+[package]
+name = "server"
+version = "0.1.0"
+authors = ["Ernest Wong <sudo@ernestwong.nz>"]
+edition = "2018"
+
+[features]
+default = [
+    "bevy/dynamic",
+]
+
+[dependencies]
+shared = {path = "../shared"}
+bevy = {version = "0.4", default-features = false}
+bevy_prototype_networked_physics = {path = "../crates/bevy_prototype_networked_physics"}

@@ -1,0 +1,21 @@
+[package]
+name = "shared"
+version = "0.1.0"
+authors = ["Ernest Wong <sudo@ernestwong.nz>"]
+edition = "2018"
+
+[features]
+default = [
+    "bevy/render",
+]
+
+[dependencies]
+bevy = {version = "0.4", default-features = false}
+bevy_prototype_networked_physics = {path = "../crates/bevy_prototype_networked_physics"}
+bevy_prototype_transform_tracker = {path = "../crates/bevy_prototype_transform_tracker"}
+nphysics2d = "0.18"
+nalgebra = {version = "0.23.2", features = ["serde-serialize"]}
+lyon = "0.16.2"
+num = "0.3.1"
+serde="1.0.118"
+splines = "3.5.1"
