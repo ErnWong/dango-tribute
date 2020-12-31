@@ -447,7 +447,13 @@ impl PlayerState {
             input_state: player.input_state.clone(),
             forces_state: player.forces_state.clone(),
             derived_measurements: player.derived_measurements.clone(),
-            derived_indices: body.deformed_indices().unwrap().map(|i| i as u32).collect(),
+            derived_indices: body
+                .deformed_indices()
+                .unwrap()
+                // The generalized positions are chunked by two, so divide the index by 2 for
+                // use by the mesh indices.
+                .map(|i| i as u32 / 2)
+                .collect(),
         }
     }
 }
