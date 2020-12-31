@@ -1,0 +1,41 @@
+[package]
+name    = "nphysics_testbed2d"
+version = "0.10.0"
+authors = [ "Sébastien Crozet <developer@crozet.re>" ]
+description = "Testbed for the 2-dimensional physics engine in Rust."
+homepage = "http://nphysics.org"
+repository = "https://github.com/rustsim/nphysics"
+keywords = [ "physics", "dynamics", "rigid", "real-time", "joints" ]
+license = "BSD-3-Clause"
+edition = "2018"
+
+
+[lib]
+name = "nphysics_testbed2d"
+path = "../../src_testbed/lib.rs"
+required-features = [ "dim2" ]
+
+[features]
+default = [ "dim2" ]
+dim2 = [ ]
+box2d-backend = [ "wrapped2d" ]
+fluids = [ "salva2d" ]
+parallel = [ "salva2d/parallel" ]
+
+
+[dependencies]
+log        = { version = "0.4", optional = true }
+bitflags   = "1"
+num-traits = "0.2"
+rand       = "0.7"
+instant    = { version = "0.1", features = [ "stdweb", "now" ]}
+simba      = "0.3"
+nalgebra   = "0.23"
+kiss3d     = { version = "0.27", features = [ "conrod" ] }
+ncollide2d = "0.26"
+wrapped2d  = { version = "0.4", optional = true }
+salva2d = { version = "0.4", features = [ "nphysics" ], optional = true }
+
+[dependencies.nphysics2d]
+path = "../nphysics2d"
+version = "0.18"

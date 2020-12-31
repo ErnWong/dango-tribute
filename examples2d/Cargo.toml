@@ -1,0 +1,35 @@
+[package]
+name    = "nphysics-examples-2d"
+version = "0.1.0"
+authors = [ "Sébastien Crozet <developer@crozet.re>" ]
+edition = "2018"
+
+[features]
+box2d-backend = [ "nphysics_testbed2d/box2d-backend" ]
+improved_fixed_point_support = [ "nphysics2d/improved_fixed_point_support" ]
+
+[dependencies]
+rand       = "0.7"
+Inflector  = "0.11"
+nalgebra   = "0.23"
+ncollide2d = "0.26"
+simba      = { version = "0.3", features = [ "partial_fixed_point_support" ]}
+
+[target.wasm32-unknown-unknown.dependencies]
+stdweb = "0.4"
+
+[target.wasm32-unknown-emscripten.dependencies]
+stdweb = "0.4"
+
+[target.asmjs-unknown-emscripten.dependencies]
+stdweb = "0.4"
+
+[dependencies.nphysics_testbed2d]
+path = "../build/nphysics_testbed2d"
+
+[dependencies.nphysics2d]
+path = "../build/nphysics2d"
+
+[[bin]]
+name = "all_examples2"
+path = "./all_examples2.rs"
