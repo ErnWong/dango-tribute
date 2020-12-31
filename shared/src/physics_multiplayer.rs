@@ -6,6 +6,7 @@ use crate::{
 use bevy::prelude::*;
 use bevy_prototype_networked_physics::{
     command::Command,
+    fixed_timestepper::Stepper,
     world::{State, World},
 };
 use nphysics2d::{
@@ -130,24 +131,6 @@ impl World for PhysicsWorld {
         }
     }
 
-    fn step(&mut self) {
-        for player in &mut self.players.values_mut() {
-            player.step(
-                self.mechanical_world.timestep(),
-                &mut self.bodies,
-                &self.colliders,
-                &self.geometrical_world,
-            );
-        }
-        self.mechanical_world.step(
-            &mut self.geometrical_world,
-            &mut self.bodies,
-            &mut self.colliders,
-            &mut self.joint_constraints,
-            &mut self.force_generators,
-        );
-    }
-
     fn set_state(&mut self, target_state: PhysicsState) {
         let bodies = &mut self.bodies;
         let colliders = &mut self.colliders;
@@ -185,6 +168,27 @@ impl World for PhysicsWorld {
             players.insert(*player_id, PlayerState::from_player(player, &self.bodies));
         }
         PhysicsState { players }
+    }
+}
+
+impl Stepper for PhysicsWorld {
+    fn step(&mut self) -> f32 {
+        for player in &mut self.players.values_mut() {
+            player.step(
+                self.mechanical_world.timestep(),
+                &mut self.bodies,
+                &self.colliders,
+                &self.geometrical_world,
+            );
+        }
+        self.mechanical_world.step(
+            &mut self.geometrical_world,
+            &mut self.bodies,
+            &mut self.colliders,
+            &mut self.joint_constraints,
+            &mut self.force_generators,
+        );
+        self.mechanical_world.timestep()
     }
 }
 
