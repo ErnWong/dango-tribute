@@ -1,6 +1,6 @@
 use crate::{
     physics_multiplayer::{PhysicsCommand, PhysicsWorld},
-    player::PlayerId,
+    player::{PlayerId, PlayerState},
 };
 use bevy::{
     prelude::*,
@@ -110,14 +110,17 @@ pub fn physics_multiplayer_client_sync_system(
         let to_despawn = old_player_ids.difference(&new_player_ids);
 
         for player_id in to_spawn {
+            info!("Spawning player {:?}", player_id);
             let player_state = new_player_states.get(player_id).unwrap();
+            let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+            update_mesh(&mut mesh, player_state);
             let entity = commands
                 .spawn(PlayerBundle {
                     sprite: Sprite {
                         size: Vec2::one(),
                         ..Default::default()
                     },
-                    mesh: meshes.add(Mesh::new(PrimitiveTopology::TriangleList)),
+                    mesh: meshes.add(mesh),
                     material: materials.add(player_state.color.into()),
                     main_pass: MainPass,
                     draw: Default::default(),
@@ -151,31 +154,36 @@ pub fn physics_multiplayer_client_sync_system(
         }
 
         for player_id in to_despawn {
+            info!("Despawning player {:?}", player_id);
             commands.despawn(player_map.0.remove(player_id).unwrap());
         }
 
         for (player_id, player_state) in new_player_states {
             let entity = player_map.0.get(player_id).unwrap();
             if let Ok((_, mesh_handle, mut transform)) = query.get_mut(*entity) {
+                info!("Updating player {:?}", player_id);
                 transform.translation.x = player_state.derived_measurements.center_of_mass.x;
                 transform.translation.y = player_state.derived_measurements.center_of_mass.y;
 
                 let mesh = meshes.get_mut(mesh_handle).unwrap();
-
-                mesh.set_indices(Some(Indices::U32(player_state.derived_indices.clone())));
-                mesh.set_attribute(
-                    Mesh::ATTRIBUTE_POSITION,
-                    player_state
-                        .positions
-                        .chunks(2)
-                        .map(|pos| [pos[0], pos[1], 0.0])
-                        .collect::<Vec<[f32; 3]>>(),
-                );
-
-                let vertex_count = player_state.derived_indices.len();
-                mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0; 3]; vertex_count]);
-                mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0; 2]; vertex_count]);
+                update_mesh(mesh, player_state);
             }
         }
     }
+}
+
+fn update_mesh(mesh: &mut Mesh, player_state: &PlayerState) {
+    mesh.set_indices(Some(Indices::U32(player_state.derived_indices.clone())));
+    mesh.set_attribute(
+        Mesh::ATTRIBUTE_POSITION,
+        player_state
+            .positions
+            .chunks(2)
+            .map(|pos| [pos[0], pos[1], 0.0])
+            .collect::<Vec<[f32; 3]>>(),
+    );
+
+    let vertex_count = player_state.positions.len() / 2;
+    mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0; 3]; vertex_count]);
+    mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0; 2]; vertex_count]);
 }
