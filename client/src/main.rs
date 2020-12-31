@@ -39,6 +39,10 @@ fn main() {
     app.add_startup_system(setup_hot_reloading.system());
 
     app.add_resource(ClearColor(Color::WHITE))
+        .add_resource(bevy::log::LogSettings {
+            level: bevy::log::Level::INFO,
+            ..Default::default()
+        })
         .add_plugin(bevy::log::LogPlugin::default())
         .add_plugin(bevy::reflect::ReflectPlugin::default())
         .add_plugin(bevy::core::CorePlugin::default())

@@ -13,13 +13,17 @@ fn main() {
     // TODO: Fix this by loading all assets from the main setup startup system.
     app.add_startup_system(setup_hot_reloading.system());
 
-    app.add_plugin(bevy::log::LogPlugin::default())
-        .add_plugin(bevy::reflect::ReflectPlugin::default())
-        .add_plugin(bevy::core::CorePlugin::default())
-        .add_plugin(bevy::diagnostic::DiagnosticsPlugin::default())
-        .add_plugin(bevy::asset::AssetPlugin::default())
-        .add_plugin(bevy::scene::ScenePlugin::default())
-        .add_plugin(bevy::app::ScheduleRunnerPlugin::default());
+    app.add_resource(bevy::log::LogSettings {
+        level: bevy::log::Level::INFO,
+        ..Default::default()
+    })
+    .add_plugin(bevy::log::LogPlugin::default())
+    .add_plugin(bevy::reflect::ReflectPlugin::default())
+    .add_plugin(bevy::core::CorePlugin::default())
+    .add_plugin(bevy::diagnostic::DiagnosticsPlugin::default())
+    .add_plugin(bevy::asset::AssetPlugin::default())
+    .add_plugin(bevy::scene::ScenePlugin::default())
+    .add_plugin(bevy::app::ScheduleRunnerPlugin::default());
 
     app.add_plugin(NetworkedPhysicsServerPlugin::<PhysicsWorld>::new(
         settings::NETWORKED_PHYSICS_CONFIG,
