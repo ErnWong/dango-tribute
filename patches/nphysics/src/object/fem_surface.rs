@@ -714,6 +714,17 @@ impl<N: RealField> Body<N> for FEMSurface<N> {
         Some((DeformationsType::Vectors, self.positions.as_mut_slice()))
     }
 
+    #[inline]
+    fn deformed_indices(&self) -> Option<Box<dyn Iterator<Item = usize> + '_>> {
+        Some(Box::new(
+            self.elements
+                .iter()
+                .map(|element| element.indices.iter())
+                .flatten()
+                .copied(),
+        ))
+    }
+
     fn update_kinematics(&mut self) {
         if !self.update_status.position_changed() {
             return;
