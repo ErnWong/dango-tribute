@@ -3664,7 +3664,9 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_prototype_networked_physics",
+ "bevy_prototype_transform_tracker",
  "shared",
+ "winit",
 ]
 
 [[package]]

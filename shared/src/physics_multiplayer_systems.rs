@@ -1,5 +1,5 @@
 use crate::{
-    physics_multiplayer::{PhysicsCommand, PhysicsWorld},
+    physics_multiplayer::{PhysicsCommand, PhysicsState, PhysicsWorld},
     player::{PlayerId, PlayerState},
 };
 use bevy::{
@@ -98,68 +98,107 @@ pub fn physics_multiplayer_client_sync_system(
     client: Res<Client<PhysicsWorld>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut query: Query<(&PlayerComponent, &Handle<Mesh>, &mut Transform)>,
+    query: Query<(&PlayerComponent, &Handle<Mesh>, &mut Transform)>,
 ) {
     if let ClientState::Ready(ready_client) = client.state() {
-        let new_player_states = ready_client.world_state().players();
+        sync_from_state(
+            ready_client.world_state(),
+            PlayerId(ready_client.client_id()),
+            &mut player_map,
+            commands,
+            &mut materials,
+            &mut meshes,
+            query,
+        );
+    }
+}
 
-        let new_player_ids: HashSet<PlayerId> = new_player_states.keys().copied().collect();
-        let old_player_ids: HashSet<PlayerId> = player_map.0.keys().copied().collect();
+pub fn physics_multiplayer_server_diagnostic_sync_system(
+    mut player_map: Local<PlayerMap>,
+    commands: &mut Commands,
+    server: Res<Server<PhysicsWorld>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    query: Query<(&PlayerComponent, &Handle<Mesh>, &mut Transform)>,
+) {
+    sync_from_state(
+        &server.world_state(),
+        PlayerId(0),
+        &mut player_map,
+        commands,
+        &mut materials,
+        &mut meshes,
+        query,
+    );
+}
 
-        let to_spawn = new_player_ids.difference(&old_player_ids);
-        let to_despawn = old_player_ids.difference(&new_player_ids);
+fn sync_from_state(
+    world_state: &PhysicsState,
+    player_to_track: PlayerId,
+    player_map: &mut PlayerMap,
+    commands: &mut Commands,
+    materials: &mut Assets<ColorMaterial>,
+    meshes: &mut Assets<Mesh>,
+    mut query: Query<(&PlayerComponent, &Handle<Mesh>, &mut Transform)>,
+) {
+    let new_player_states = world_state.players();
 
-        for player_id in to_spawn {
-            info!("Spawning player {:?}", player_id);
-            let player_state = new_player_states.get(player_id).unwrap();
-            let mut transform = Transform::default();
+    let new_player_ids: HashSet<PlayerId> = new_player_states.keys().copied().collect();
+    let old_player_ids: HashSet<PlayerId> = player_map.0.keys().copied().collect();
+
+    let to_spawn = new_player_ids.difference(&old_player_ids);
+    let to_despawn = old_player_ids.difference(&new_player_ids);
+
+    for player_id in to_spawn {
+        info!("Spawning player {:?}", player_id);
+        let player_state = new_player_states.get(player_id).unwrap();
+        let mut transform = Transform::default();
+        update_transform(&mut transform, player_state);
+        let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+        update_mesh(&mut mesh, player_state, &transform);
+        let entity = commands
+            .spawn(PlayerBundle {
+                sprite: Sprite {
+                    size: Vec2::one(),
+                    ..Default::default()
+                },
+                mesh: meshes.add(mesh),
+                material: materials.add(player_state.color.into()),
+                main_pass: MainPass,
+                draw: Default::default(),
+                visible: Visible {
+                    is_transparent: true,
+                    ..Default::default()
+                },
+                render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
+                    SPRITE_PIPELINE_HANDLE.typed(),
+                )]),
+                transform,
+                global_transform: GlobalTransform::default(),
+                player: PlayerComponent,
+            })
+            .current_entity()
+            .unwrap();
+
+        if *player_id == player_to_track {
+            commands.insert_one(entity, TransformTrackingTarget);
+        }
+
+        player_map.0.insert(*player_id, entity);
+    }
+
+    for player_id in to_despawn {
+        info!("Despawning player {:?}", player_id);
+        commands.despawn(player_map.0.remove(player_id).unwrap());
+    }
+
+    for (player_id, player_state) in new_player_states {
+        let entity = player_map.0.get(player_id).unwrap();
+        if let Ok((_, mesh_handle, mut transform)) = query.get_mut(*entity) {
+            trace!("Updating player {:?}", player_id);
             update_transform(&mut transform, player_state);
-            let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-            update_mesh(&mut mesh, player_state, &transform);
-            let entity = commands
-                .spawn(PlayerBundle {
-                    sprite: Sprite {
-                        size: Vec2::one(),
-                        ..Default::default()
-                    },
-                    mesh: meshes.add(mesh),
-                    material: materials.add(player_state.color.into()),
-                    main_pass: MainPass,
-                    draw: Default::default(),
-                    visible: Visible {
-                        is_transparent: true,
-                        ..Default::default()
-                    },
-                    render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
-                        SPRITE_PIPELINE_HANDLE.typed(),
-                    )]),
-                    transform: transform,
-                    global_transform: GlobalTransform::default(),
-                    player: PlayerComponent,
-                })
-                .current_entity()
-                .unwrap();
-
-            if *player_id == PlayerId(ready_client.client_id()) {
-                commands.insert_one(entity, TransformTrackingTarget);
-            }
-
-            player_map.0.insert(*player_id, entity);
-        }
-
-        for player_id in to_despawn {
-            info!("Despawning player {:?}", player_id);
-            commands.despawn(player_map.0.remove(player_id).unwrap());
-        }
-
-        for (player_id, player_state) in new_player_states {
-            let entity = player_map.0.get(player_id).unwrap();
-            if let Ok((_, mesh_handle, mut transform)) = query.get_mut(*entity) {
-                trace!("Updating player {:?}", player_id);
-                update_transform(&mut transform, player_state);
-                let mesh = meshes.get_mut(mesh_handle).unwrap();
-                update_mesh(mesh, player_state, &transform);
-            }
+            let mesh = meshes.get_mut(mesh_handle).unwrap();
+            update_mesh(mesh, player_state, &transform);
         }
     }
 }

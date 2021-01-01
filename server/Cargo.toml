@@ -6,10 +6,19 @@ edition = "2018"
 
 [features]
 default = [
-    "bevy/dynamic",
+  "bevy/dynamic",
+  # TODO: enable these only for debug window builds
+  "bevy/bevy_gltf",
+  "bevy/bevy_winit",
+  "bevy/render",
+  "bevy/png",
+  "bevy/bevy_wgpu",
+  "winit",
 ]
 
 [dependencies]
 shared = {path = "../shared"}
 bevy = {version = "0.4", default-features = false}
 bevy_prototype_networked_physics = {path = "../crates/bevy_prototype_networked_physics"}
+bevy_prototype_transform_tracker = {path = "../crates/bevy_prototype_transform_tracker"}
+winit = {version = "0.24.0", optional = true}
