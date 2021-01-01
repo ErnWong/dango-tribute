@@ -3,6 +3,7 @@ use bevy::{
     prelude::*,
 };
 use bevy_prototype_networked_physics::NetworkedPhysicsServerPlugin;
+use bevy_prototype_transform_tracker::TransformTrackingFollower;
 use shared::{physics_multiplayer::PhysicsWorld, physics_multiplayer_systems, settings};
 
 const SHOW_DEBUG_WINDOW: bool = true;
@@ -59,7 +60,8 @@ fn main() {
     if SHOW_DEBUG_WINDOW {
         app.add_system(
             physics_multiplayer_systems::physics_multiplayer_server_diagnostic_sync_system.system(),
-        );
+        )
+        .add_startup_system(debug_window_setup.system());
     }
 
     app.run();
@@ -67,4 +69,17 @@ fn main() {
 
 fn setup_hot_reloading(asset_server: ResMut<AssetServer>) {
     asset_server.watch_for_changes().unwrap();
+}
+
+fn debug_window_setup(commands: &mut Commands) {
+    commands
+        .spawn(Camera2dBundle {
+            transform: Transform {
+                scale: Vec3::one() / 60.0,
+                translation: Vec3::unit_z() * (1000.0 / 60.0 - 0.1),
+                rotation: Default::default(),
+            },
+            ..Default::default()
+        })
+        .with(TransformTrackingFollower);
 }
