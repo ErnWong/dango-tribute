@@ -155,7 +155,7 @@ pub fn physics_multiplayer_client_sync_system(
         for (player_id, player_state) in new_player_states {
             let entity = player_map.0.get(player_id).unwrap();
             if let Ok((_, mesh_handle, mut transform)) = query.get_mut(*entity) {
-                info!("Updating player {:?}", player_id);
+                trace!("Updating player {:?}", player_id);
                 update_transform(&mut transform, player_state);
                 let mesh = meshes.get_mut(mesh_handle).unwrap();
                 update_mesh(mesh, player_state, &transform);
