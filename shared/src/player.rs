@@ -203,11 +203,15 @@ impl Player {
         {
             if let Some(state_position) = state.positions.get(i) {
                 *body_position = *state_position;
+            } else {
+                warn!("Not enough position values from state to fill body");
             }
         }
         for (i, body_velocity) in body.generalized_velocity_mut().iter_mut().enumerate() {
             if let Some(state_velocity) = state.velocities.get(i) {
                 *body_velocity = *state_velocity;
+            } else {
+                warn!("Not enough velocity values from state to fill body");
             }
         }
         self.input_state = state.input_state.clone();
