@@ -3860,6 +3860,9 @@ name = "splines"
 version = "3.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f22fadfd67e89d6ae749a14cbedf0ff40d4a629a5cf72be225d7ba5289b0684a"
+dependencies = [
+ "glam",
+]
 
 [[package]]
 name = "standback"

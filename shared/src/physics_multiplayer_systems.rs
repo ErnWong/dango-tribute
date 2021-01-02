@@ -18,6 +18,12 @@ use bevy_prototype_networked_physics::{
     server::Server,
 };
 use bevy_prototype_transform_tracker::TransformTrackingTarget;
+use lyon::{
+    math::point,
+    path::Path,
+    tessellation::{BuffersBuilder, FillAttributes, FillOptions, FillTessellator, VertexBuffers},
+};
+use splines::{Interpolation, Key, Spline};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Default)]
@@ -92,6 +98,12 @@ pub struct PlayerComponent;
 #[derive(Default)]
 pub struct PlayerMap(HashMap<PlayerId, Entity>);
 
+#[derive(Copy, Clone)]
+enum DrawMode {
+    Poly,
+    Spline,
+}
+
 pub fn physics_multiplayer_client_sync_system(
     mut player_map: Local<PlayerMap>,
     commands: &mut Commands,
@@ -109,6 +121,7 @@ pub fn physics_multiplayer_client_sync_system(
             &mut materials,
             &mut meshes,
             query,
+            DrawMode::Spline,
         );
     }
 }
@@ -129,6 +142,7 @@ pub fn physics_multiplayer_server_diagnostic_sync_system(
         &mut materials,
         &mut meshes,
         query,
+        DrawMode::Poly,
     );
 }
 
@@ -140,6 +154,7 @@ fn sync_from_state(
     materials: &mut Assets<ColorMaterial>,
     meshes: &mut Assets<Mesh>,
     mut query: Query<(&PlayerComponent, &Handle<Mesh>, &mut Transform)>,
+    draw_mode: DrawMode,
 ) {
     let new_player_states = world_state.players();
 
@@ -155,7 +170,7 @@ fn sync_from_state(
         let mut transform = Transform::default();
         update_transform(&mut transform, player_state);
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-        update_mesh(&mut mesh, player_state, &transform);
+        update_mesh(&mut mesh, player_state, &transform, draw_mode);
         let entity = commands
             .spawn(PlayerBundle {
                 sprite: Sprite {
@@ -198,7 +213,7 @@ fn sync_from_state(
             trace!("Updating player {:?}", player_id);
             update_transform(&mut transform, player_state);
             let mesh = meshes.get_mut(mesh_handle).unwrap();
-            update_mesh(mesh, player_state, &transform);
+            update_mesh(mesh, player_state, &transform, draw_mode);
         }
     }
 }
@@ -209,24 +224,87 @@ fn update_transform(transform: &mut Transform, player_state: &PlayerState) {
     transform.translation.y = player_state.derived_measurements.center_of_mass.y;
 }
 
-fn update_mesh(mesh: &mut Mesh, player_state: &PlayerState, transform: &Transform) {
+fn update_mesh(
+    mesh: &mut Mesh,
+    player_state: &PlayerState,
+    transform: &Transform,
+    draw_mode: DrawMode,
+) {
     let to_local_coords = transform.compute_matrix().inverse();
+    let local_coords_iter = player_state
+        .positions
+        .chunks(2)
+        .map(|pos| to_local_coords.transform_point3(Vec3::new(pos[0], pos[1], 0.0)));
+    let vertex_count;
 
-    mesh.set_indices(Some(Indices::U32(player_state.derived_indices.clone())));
-    mesh.set_attribute(
-        Mesh::ATTRIBUTE_POSITION,
-        player_state
-            .positions
-            .chunks(2)
-            .map(|pos| {
-                to_local_coords
-                    .transform_point3(Vec3::new(pos[0], pos[1], 0.0))
-                    .into()
-            })
-            .collect::<Vec<[f32; 3]>>(),
-    );
+    match draw_mode {
+        DrawMode::Poly => {
+            mesh.set_indices(Some(Indices::U32(
+                player_state.derived_mesh_indices.clone(),
+            )));
+            mesh.set_attribute(
+                Mesh::ATTRIBUTE_POSITION,
+                local_coords_iter
+                    .map(|v| v.into())
+                    .collect::<Vec<[f32; 3]>>(),
+            );
+            vertex_count = player_state.positions.len() / 2;
+        }
 
-    let vertex_count = player_state.positions.len() / 2;
+        DrawMode::Spline => {
+            let mut spline_keys = vec![];
+            let local_coords = local_coords_iter.collect::<Vec<Vec3>>();
+
+            // Note: We are repeating the first 3 vertices: 2 to provide context to the
+            // cubic spline interpolation, and 1 more to close the loop.
+            let wrapped_boundary_indices = player_state
+                .derived_boundary_indices
+                .iter()
+                .cycle()
+                .take(player_state.derived_boundary_indices.len() + 3);
+            for boundary_index in wrapped_boundary_indices {
+                spline_keys.push(Key::new(
+                    spline_keys.len() as f32,
+                    local_coords[*boundary_index],
+                    Interpolation::CatmullRom,
+                ));
+            }
+            let mut path_builder = Path::builder();
+
+            // Note: Start at offset of 1 (since key 0 is used for interpolation context).
+            path_builder.move_to(point(spline_keys[1].value.x, spline_keys[1].value.y));
+            let spline = Spline::from_vec(spline_keys);
+
+            const SUBDIVISIONS: usize = 4;
+            for i in 0..(player_state.derived_boundary_indices.len() * SUBDIVISIONS) {
+                // Note: Start at offset of 1 (since key 0 is used for interpolation context).
+                let t = (i as f32) / (SUBDIVISIONS as f32) + 1.0;
+                if let Some(p) = spline.sample(t) {
+                    path_builder.line_to(point(p.x, p.y));
+                } else {
+                }
+            }
+            path_builder.close();
+            let path = path_builder.build();
+            let mut tesselator = FillTessellator::new();
+            let mut geometry: VertexBuffers<[f32; 3], u32> = VertexBuffers::new();
+            tesselator
+                .tessellate_path(
+                    &path,
+                    &FillOptions::default(),
+                    &mut BuffersBuilder::new(
+                        &mut geometry,
+                        |pos: lyon::math::Point, _: FillAttributes| [pos.x, pos.y, 0.0],
+                    ),
+                )
+                .unwrap();
+
+            vertex_count = geometry.vertices.len();
+            mesh.set_indices(Some(Indices::U32(geometry.indices)));
+            mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, geometry.vertices);
+        }
+    }
+
     mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0; 3]; vertex_count]);
     mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0; 2]; vertex_count]);
 }

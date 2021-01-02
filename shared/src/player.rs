@@ -5,6 +5,7 @@ use lyon::tessellation::{basic_shapes::fill_circle, BuffersBuilder, FillOptions,
 use nphysics2d::{
     math::{Force, ForceType},
     nalgebra::{Point2, Point3, Vector2, Vector3},
+    ncollide2d::shape::Polyline,
     object::{
         Body, DefaultBodyHandle, DefaultBodySet, DefaultColliderHandle, DefaultColliderSet,
         FEMSurfaceDesc,
@@ -56,6 +57,8 @@ pub struct Player {
     semiderived_collision_state: PlayerCollisionState,
 
     derived_measurements: PhysicsBodyMeasurements,
+    derived_mesh_indices: Vec<u32>,
+    derived_boundary_indices: Vec<usize>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -78,7 +81,10 @@ pub struct PlayerState {
     pub derived_measurements: PhysicsBodyMeasurements,
 
     #[serde(skip)]
-    pub derived_indices: Vec<u32>,
+    pub derived_mesh_indices: Vec<u32>,
+
+    #[serde(skip)]
+    pub derived_boundary_indices: Vec<usize>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -169,16 +175,42 @@ impl Player {
                 .mass_damping(0.2)
                 .build();
         let collider_desc = fem_surface.boundary_collider_desc();
-        let body = bodies.insert(fem_surface);
-        let collider = colliders.insert(collider_desc.build(body));
+
+        let derived_mesh_indices = fem_surface
+            .deformed_indices()
+            .unwrap()
+            // The generalized positions are chunked by two, so divide the index by 2 for
+            // use by the mesh indices.
+            .map(|i| i as u32 / 2)
+            .collect();
+
+        let body_handle = bodies.insert(fem_surface);
+        let collider = collider_desc.build(body_handle);
+
+        let polyline = collider.shape().as_shape::<Polyline<RealField>>().unwrap();
+        let mut polyline_adj = vec![0; physics_mesh.vertices.len()];
+        for edge in polyline.edges() {
+            polyline_adj[edge.indices[0]] = edge.indices[1];
+        }
+        let mut derived_boundary_indices = vec![];
+        let start = polyline.edges()[0].indices[0];
+        let mut i = start;
+        while derived_boundary_indices.len() < polyline.points().len() {
+            derived_boundary_indices.push(i);
+            i = polyline_adj[i];
+        }
+
+        let collider_handle = colliders.insert(collider);
         Self {
             color,
             size,
-            body,
-            collider,
+            body: body_handle,
+            collider: collider_handle,
             input_state: Default::default(),
             forces_state: Default::default(),
             derived_measurements: Default::default(),
+            derived_mesh_indices,
+            derived_boundary_indices,
             semiderived_collision_state: Default::default(),
         }
     }
@@ -473,13 +505,8 @@ impl PlayerState {
             forces_state: player.forces_state.clone(),
             semiderived_collision_state: player.semiderived_collision_state.clone(),
             derived_measurements: player.derived_measurements.clone(),
-            derived_indices: body
-                .deformed_indices()
-                .unwrap()
-                // The generalized positions are chunked by two, so divide the index by 2 for
-                // use by the mesh indices.
-                .map(|i| i as u32 / 2)
-                .collect(),
+            derived_mesh_indices: player.derived_mesh_indices.clone(),
+            derived_boundary_indices: player.derived_boundary_indices.clone(),
         }
     }
 }
