@@ -174,7 +174,7 @@ impl World for PhysicsWorld {
 impl Stepper for PhysicsWorld {
     fn step(&mut self) -> f32 {
         for player in &mut self.players.values_mut() {
-            player.step(
+            player.pre_step(
                 self.mechanical_world.timestep(),
                 &mut self.bodies,
                 &self.colliders,
@@ -188,6 +188,9 @@ impl Stepper for PhysicsWorld {
             &mut self.joint_constraints,
             &mut self.force_generators,
         );
+        for player in &mut self.players.values_mut() {
+            player.post_step(&self.colliders, &self.geometrical_world);
+        }
         self.mechanical_world.timestep()
     }
 }

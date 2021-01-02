@@ -53,6 +53,8 @@ pub struct Player {
     input_state: PlayerInputState,
     forces_state: PlayerForcesState,
 
+    semiderived_collision_state: PlayerCollisionState,
+
     derived_measurements: PhysicsBodyMeasurements,
 }
 
@@ -64,6 +66,13 @@ pub struct PlayerState {
     pub velocities: Vec<RealField>,
     pub input_state: PlayerInputState,
     pub forces_state: PlayerForcesState,
+
+    // Note: While this information can be derived from the colliders,
+    // we don't sync collider information with the server, so we need
+    // to compute all the desired collision information that will affect
+    // the game logic immediately after the physics update in the same timestep,
+    // and have this collision information stored in the player state.
+    pub semiderived_collision_state: PlayerCollisionState,
 
     #[serde(skip)]
     pub derived_measurements: PhysicsBodyMeasurements,
@@ -93,6 +102,11 @@ pub struct PlayerForcesState {
     horizontal_force: RealField,
     jump_force: RealField,
     crawl_side_timer: RealField,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct PlayerCollisionState {
+    has_feet_contact: bool,
 }
 
 pub struct DangoPhysicsMesh {
@@ -165,6 +179,7 @@ impl Player {
             input_state: Default::default(),
             forces_state: Default::default(),
             derived_measurements: Default::default(),
+            semiderived_collision_state: Default::default(),
         }
     }
 
@@ -197,6 +212,7 @@ impl Player {
         }
         self.input_state = state.input_state.clone();
         self.forces_state = state.forces_state.clone();
+        self.semiderived_collision_state = state.semiderived_collision_state.clone();
     }
 
     pub fn apply_command(&mut self, command: &PlayerInputCommand) {
@@ -274,21 +290,23 @@ impl Player {
         return false;
     }
 
-    fn step_variable_jump_force(&mut self, dt: RealField, in_air: bool) {
+    fn step_variable_jump_force(&mut self, dt: RealField) {
         self.forces_state.jump_force -= PHYSICS_CONFIG.variable_jump_force_decay * dt;
         if !self.input_state.jump {
             self.forces_state.jump_force = 0.0;
-        } else if self.forces_state.jump_force <= 0.0 && !in_air {
+        } else if self.forces_state.jump_force <= 0.0
+            && self.semiderived_collision_state.has_feet_contact
+        {
             self.forces_state.jump_force = PHYSICS_CONFIG.variable_jump_force_initial;
         } else if self.forces_state.jump_force < 0.0 {
             self.forces_state.jump_force = 0.0;
         }
     }
 
-    fn step_horizontal_force(&mut self, in_air: bool) {
+    fn step_horizontal_force(&mut self) {
         self.forces_state.horizontal_force = ((self.input_state.right as i32 as RealField)
             - (self.input_state.left as i32 as RealField))
-            * if in_air {
+            * if self.semiderived_collision_state.has_feet_contact {
                 PHYSICS_CONFIG.horizontal_air_movement_force
             } else if self.input_state.roll {
                 PHYSICS_CONFIG.horizontal_rolling_movement_force
@@ -398,7 +416,7 @@ impl Player {
         }
     }
 
-    pub fn step(
+    pub fn pre_step(
         &mut self,
         dt: RealField,
         bodies: &mut DefaultBodySet<RealField>,
@@ -408,14 +426,14 @@ impl Player {
         let body = bodies.get_mut(self.body).unwrap();
 
         self.update_measurements(body);
-        let in_air = !self.has_feet_contact(colliders, geometrical_world);
 
         let should_lock_rotation = !self.input_state.roll;
-        let should_crawl = !self.input_state.roll && !in_air;
-        let should_apply_drag = !in_air;
+        let should_crawl =
+            !self.input_state.roll && self.semiderived_collision_state.has_feet_contact;
+        let should_apply_drag = self.semiderived_collision_state.has_feet_contact;
 
-        self.step_variable_jump_force(dt, in_air);
-        self.step_horizontal_force(in_air);
+        self.step_variable_jump_force(dt);
+        self.step_horizontal_force();
         let crawl_force_peak_pos = self.step_crawl_force_peak_pos(dt);
 
         // Add in some fictitious ground drag to prevent dangos from accelerating to infinity.
@@ -434,6 +452,15 @@ impl Player {
             self.apply_rotation_lock(body);
         }
     }
+
+    pub fn post_step(
+        &mut self,
+        colliders: &DefaultColliderSet<RealField>,
+        geometrical_world: &DefaultGeometricalWorld<RealField>,
+    ) {
+        self.semiderived_collision_state.has_feet_contact =
+            self.has_feet_contact(colliders, geometrical_world);
+    }
 }
 
 impl PlayerState {
@@ -446,6 +473,7 @@ impl PlayerState {
             velocities: body.generalized_velocity().iter().copied().collect(),
             input_state: player.input_state.clone(),
             forces_state: player.forces_state.clone(),
+            semiderived_collision_state: player.semiderived_collision_state.clone(),
             derived_measurements: player.derived_measurements.clone(),
             derived_indices: body
                 .deformed_indices()
