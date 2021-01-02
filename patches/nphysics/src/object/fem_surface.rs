@@ -710,6 +710,7 @@ impl<N: RealField> Body<N> for FEMSurface<N> {
 
     #[inline]
     fn deformed_positions_mut(&mut self) -> Option<(DeformationsType, &mut [N])> {
+        self.update_status.set_position_changed(true);
         self.update_status.set_local_inertia_changed(true);
         Some((DeformationsType::Vectors, self.positions.as_mut_slice()))
     }
