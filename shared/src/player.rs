@@ -420,13 +420,7 @@ impl Player {
         }
     }
 
-    pub fn pre_step(
-        &mut self,
-        dt: RealField,
-        bodies: &mut DefaultBodySet<RealField>,
-        colliders: &DefaultColliderSet<RealField>,
-        geometrical_world: &DefaultGeometricalWorld<RealField>,
-    ) {
+    pub fn pre_step(&mut self, dt: RealField, bodies: &mut DefaultBodySet<RealField>) {
         let body = bodies.get_mut(self.body).unwrap();
 
         self.update_measurements(body);
