@@ -1,7 +1,6 @@
 use crate::settings::RealField;
 use bevy::prelude::*;
 use bevy_prototype_networked_physics::world::State;
-use lyon::tessellation::{basic_shapes::fill_circle, BuffersBuilder, FillOptions, VertexBuffers};
 use nphysics2d::{
     math::{Force, ForceType},
     nalgebra::{Point2, Point3, Vector2, Vector3},
@@ -115,10 +114,31 @@ pub struct PlayerCollisionState {
     has_feet_contact: bool,
 }
 
-pub struct DangoPhysicsMesh {
-    vertices: Vec<Point2<RealField>>,
-    indices: Vec<Point3<usize>>,
-}
+const PLAYER_FEM_MESH_VERTICES: [[RealField; 2]; 9] = [
+    // Center
+    [0.0, 0.0],
+    // 8 corners of an octagon starting from x axis going counter clockwise
+    [0.924, 0.383],
+    [0.383, 0.924],
+    [-0.383, 0.924],
+    [-0.924, 0.383],
+    [-0.924, -0.383],
+    [-0.383, -0.924],
+    [0.383, -0.924],
+    [0.924, -0.383],
+];
+
+const PLAYER_FEM_MESH_INDICES: [[usize; 3]; 8] = [
+    // 8 triangles from x axis going counter clockwise
+    [0, 1, 2],
+    [0, 2, 3],
+    [0, 3, 4],
+    [0, 4, 5],
+    [0, 5, 6],
+    [0, 6, 7],
+    [0, 7, 8],
+    [0, 8, 1],
+];
 
 #[derive(Default, Debug, Clone)]
 pub struct PhysicsBodyMeasurements {
@@ -129,35 +149,6 @@ pub struct PhysicsBodyMeasurements {
     pub center_of_mass: Vector2<RealField>,
 }
 
-impl Default for DangoPhysicsMesh {
-    fn default() -> DangoPhysicsMesh {
-        let mut geometry: VertexBuffers<Point2<RealField>, usize> = VertexBuffers::new();
-        fill_circle(
-            lyon::math::Point::zero(),
-            1.0,
-            &FillOptions::tolerance(0.1),
-            &mut BuffersBuilder::new(&mut geometry, |pos: lyon::math::Point| {
-                // Note: Mirror the x coordinate to flip the triangles needed for
-                // Nphyiscs' FEMSurface simulation.
-                Point2::new(-pos.x, pos.y)
-            }),
-        )
-        .unwrap();
-        let mut grouped_indices = vec![];
-        for i in (0..geometry.indices.len()).step_by(3) {
-            grouped_indices.push(Point3::<usize>::new(
-                geometry.indices[i],
-                geometry.indices[i + 1],
-                geometry.indices[i + 2],
-            ));
-        }
-        DangoPhysicsMesh {
-            vertices: geometry.vertices,
-            indices: grouped_indices,
-        }
-    }
-}
-
 impl Player {
     pub fn new(
         color: Color,
@@ -166,14 +157,21 @@ impl Player {
         bodies: &mut DefaultBodySet<RealField>,
         colliders: &mut DefaultColliderSet<RealField>,
     ) -> Self {
-        let physics_mesh = DangoPhysicsMesh::default();
-        let mut fem_surface =
-            FEMSurfaceDesc::<RealField>::new(&physics_mesh.vertices, &physics_mesh.indices)
-                .translation(position)
-                .scale(Vector2::new(size, size))
-                .young_modulus(1.0e2)
-                .mass_damping(0.2)
-                .build();
+        let mut fem_surface = FEMSurfaceDesc::<RealField>::new(
+            &PLAYER_FEM_MESH_VERTICES
+                .iter()
+                .map(|[x, y]| Point2::new(*x, *y))
+                .collect::<Vec<Point2<RealField>>>(),
+            &PLAYER_FEM_MESH_INDICES
+                .iter()
+                .map(|[i, j, k]| Point3::new(*i, *j, *k))
+                .collect::<Vec<Point3<usize>>>(),
+        )
+        .translation(position)
+        .scale(Vector2::new(size, size))
+        .young_modulus(1.0e2)
+        .mass_damping(0.2)
+        .build();
         let collider_desc = fem_surface.boundary_collider_desc();
 
         let derived_mesh_indices = fem_surface
@@ -188,7 +186,7 @@ impl Player {
         let collider = collider_desc.build(body_handle);
 
         let polyline = collider.shape().as_shape::<Polyline<RealField>>().unwrap();
-        let mut polyline_adj = vec![0; physics_mesh.vertices.len()];
+        let mut polyline_adj = vec![0; PLAYER_FEM_MESH_VERTICES.len()];
         for edge in polyline.edges() {
             polyline_adj[edge.indices[0]] = edge.indices[1];
         }
