@@ -11,6 +11,10 @@ use bevy::{
     },
     sprite::SPRITE_PIPELINE_HANDLE,
 };
+use bevy_prototype_lyon::{
+    basic_shapes::{primitive, ShapeType},
+    TessellationMode,
+};
 use bevy_prototype_networked_physics::{
     client::{Client, ClientState},
     events::ClientConnectionEvent,
@@ -113,7 +117,7 @@ pub fn physics_multiplayer_client_sync_system(
     commands: &mut Commands,
     client: Res<Client<PhysicsWorld>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    mut meshes: ResMut<Assets<Mesh>>,
+    meshes: ResMut<Assets<Mesh>>,
     query: Query<(&PlayerComponent, &Handle<Mesh>, &mut Transform)>,
 ) {
     if let ClientState::Ready(ready_client) = client.state() {
@@ -123,7 +127,7 @@ pub fn physics_multiplayer_client_sync_system(
             &mut player_map,
             commands,
             &mut materials,
-            &mut meshes,
+            meshes,
             query,
             DrawMode::Spline,
         );
@@ -145,7 +149,7 @@ pub fn physics_multiplayer_server_diagnostic_sync_system(
         &mut player_map,
         commands,
         &mut materials,
-        &mut meshes,
+        meshes,
         query,
         DrawMode::Poly,
     );
@@ -157,7 +161,7 @@ fn sync_from_state(
     player_map: &mut PlayerMap,
     commands: &mut Commands,
     materials: &mut Assets<ColorMaterial>,
-    meshes: &mut Assets<Mesh>,
+    mut meshes: ResMut<Assets<Mesh>>,
     mut query: Query<(&PlayerComponent, &Handle<Mesh>, &mut Transform)>,
     draw_mode: DrawMode,
 ) {
@@ -199,6 +203,30 @@ fn sync_from_state(
             })
             .current_entity()
             .unwrap();
+        commands.set_current_entity(entity);
+        commands.with_children(|parent| {
+            parent
+                .spawn(primitive(
+                    materials.add(Color::BLACK.into()),
+                    &mut meshes,
+                    ShapeType::Rectangle {
+                        width: 0.07,
+                        height: 0.4,
+                    },
+                    TessellationMode::Fill(&FillOptions::default()),
+                    Vec3::new(-0.1, 0.3, 1.0),
+                ))
+                .spawn(primitive(
+                    materials.add(Color::BLACK.into()),
+                    &mut meshes,
+                    ShapeType::Rectangle {
+                        width: 0.07,
+                        height: 0.4,
+                    },
+                    TessellationMode::Fill(&FillOptions::default()),
+                    Vec3::new(0.1, 0.3, 1.0),
+                ));
+        });
 
         if *player_id == player_to_track {
             commands.insert_one(entity, TransformTrackingTarget);
