@@ -147,6 +147,7 @@ pub struct PhysicsBodyMeasurements {
     pub sum_of_radius_squared: RealField,
     pub mass: RealField,
     pub center_of_mass: Vector2<RealField>,
+    pub mean_angle: RealField,
 }
 
 impl Player {
@@ -260,14 +261,19 @@ impl Player {
 
     fn update_measurements(&mut self, body: &dyn Body<RealField>) {
         let mut center_of_mass = Vector2::<RealField>::new(0.0, 0.0);
+        let mut sum_of_sine_angle = 0.0;
+        let mut sum_of_cosine_angle = 0.0;
         let mut mass: RealField = 0.0;
         for i in 0..body.num_parts() {
             let part = body.part(i).unwrap();
             let part_mass = part.inertia().linear;
             center_of_mass += part.position().translation.vector * part_mass;
+            sum_of_sine_angle += part.position().rotation.angle().sin();
+            sum_of_cosine_angle += part.position().rotation.angle().cos();
             mass += part_mass;
         }
         center_of_mass /= mass;
+        let mean_angle = sum_of_sine_angle.atan2(sum_of_cosine_angle);
 
         // We pretend that each vertex represents an equal amount of mass (which is
         // obviously not true due to the design of Lyon's tessellator).
@@ -300,6 +306,7 @@ impl Player {
             sum_of_radius_squared,
             mass,
             center_of_mass,
+            mean_angle,
         };
     }
 
@@ -405,9 +412,8 @@ impl Player {
 
         // Finally, apply a proportional controller to correct the dango's angle
         // so it is facing upright.
-        let angle = body.part(0).unwrap().position().rotation.angle();
-        let angle_compensation_per_radius =
-            angle * PHYSICS_CONFIG.angle_proportional_controller_coefficient;
+        let angle_compensation_per_radius = self.derived_measurements.mean_angle
+            * PHYSICS_CONFIG.angle_proportional_controller_coefficient;
 
         // If the dango's angle is more than some angle offset and has sufficient angular
         // momentum going away from the 0 degree offset, then invert the angle compensator
@@ -417,9 +423,11 @@ impl Player {
         // This means that when the number of body parts change, the behaviour will
         // become very different. We may need to recallibrate and rethink about this
         // expression the next time we change the tessellator's tolerance parameter.
-        let past_stable_angle = angle.abs() > PHYSICS_CONFIG.stable_angle_margin;
-        let is_rolling_away =
-            self.derived_measurements.angular_momentum.signum() * angle.signum() > 0.0;
+        let past_stable_angle =
+            self.derived_measurements.mean_angle.abs() > PHYSICS_CONFIG.stable_angle_margin;
+        let is_rolling_away = self.derived_measurements.angular_momentum.signum()
+            * self.derived_measurements.mean_angle.signum()
+            > 0.0;
         let angle_natural_compensation_per_radius = if past_stable_angle && is_rolling_away {
             -angle_compensation_per_radius
         } else {
