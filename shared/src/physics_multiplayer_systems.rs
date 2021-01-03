@@ -227,6 +227,7 @@ fn update_transform(transform: &mut Transform, player_state: &PlayerState) {
     transform.scale = Vec3::one() * player_state.size;
     transform.translation.x = player_state.derived_measurements.center_of_mass.x;
     transform.translation.y = player_state.derived_measurements.center_of_mass.y;
+    transform.rotation = Quat::from_rotation_z(player_state.derived_measurements.mean_angle);
 }
 
 fn update_mesh(
