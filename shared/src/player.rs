@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use bevy_prototype_networked_physics::world::State;
 use nphysics2d::{
     math::{Force, ForceType},
-    nalgebra::{Point2, Point3, Vector2, Vector3},
+    nalgebra::{Isometry2, Point2, Point3, Vector2, Vector3},
     ncollide2d::shape::Polyline,
     object::{
         Body, DefaultBodyHandle, DefaultBodySet, DefaultColliderHandle, DefaultColliderSet,
@@ -521,23 +521,16 @@ impl State for PlayerState {
     fn from_interpolation(old_state: &Self, new_state: &Self, t: f32) -> Self {
         let mut state = new_state.clone();
 
-        // Lerp the positions and velocities.
-        let positions_zipped = state
-            .positions
-            .iter_mut()
-            .zip(old_state.positions.iter().zip(new_state.positions.iter()));
-        for (position, (old_position, new_position)) in positions_zipped {
-            *position = (1.0 - t) * *old_position + t * *new_position;
-        }
-        let velocities_zipped = state
-            .velocities
-            .iter_mut()
-            .zip(old_state.velocities.iter().zip(new_state.velocities.iter()));
-        for (velocity, (old_velocity, new_velocity)) in velocities_zipped {
-            *velocity = (1.0 - t) * *old_velocity + t * *new_velocity;
-        }
+        // Nonlinearly interpolate the derived mean angles.
+        let weighted_old_sine = (1.0 - t) * old_state.derived_measurements.mean_angle.sin();
+        let weighted_old_cosine = (1.0 - t) * old_state.derived_measurements.mean_angle.cos();
+        let weighted_new_sine = t * new_state.derived_measurements.mean_angle.sin();
+        let weighted_new_cosine = t * new_state.derived_measurements.mean_angle.cos();
+        let interpolated_sine = weighted_old_sine + weighted_new_sine;
+        let interpolated_cosine = weighted_old_cosine + weighted_new_cosine;
+        state.derived_measurements.mean_angle = interpolated_sine.atan2(interpolated_cosine);
 
-        // Lerp the derived measurements.
+        // Lerp the other derived measurements.
         state.derived_measurements.angular_momentum = (1.0 - t)
             * old_state.derived_measurements.angular_momentum
             + t * new_state.derived_measurements.angular_momentum;
@@ -551,6 +544,66 @@ impl State for PlayerState {
         state.derived_measurements.center_of_mass = (1.0 - t)
             * old_state.derived_measurements.center_of_mass
             + t * new_state.derived_measurements.center_of_mass;
+
+        // Lerp the positions and velocities in local coordinates.
+        // We don't lerp the global positions because that would cause the interpolated body to
+        // implode if there is a rotation difference between old and new states.
+        // TODO: We can possibly vectorize out the loops.
+        // TODO: We can possible cache the local coordinate results since that's what we use in the
+        // systems later on.
+        let old_inv_isometry = Isometry2::new(
+            old_state.derived_measurements.center_of_mass,
+            old_state.derived_measurements.mean_angle,
+        )
+        .inverse();
+        let new_inv_isometry = Isometry2::new(
+            new_state.derived_measurements.center_of_mass,
+            new_state.derived_measurements.mean_angle,
+        )
+        .inverse();
+        let interpolated_isometry = Isometry2::new(
+            state.derived_measurements.center_of_mass,
+            state.derived_measurements.mean_angle,
+        )
+        .to_homogeneous();
+        let positions_zipped = state.positions.chunks_exact_mut(2).zip(
+            old_state
+                .positions
+                .chunks_exact(2)
+                .zip(new_state.positions.chunks_exact(2)),
+        );
+        for (position, (old_position, new_position)) in positions_zipped {
+            let local_old = old_inv_isometry
+                .transform_point(&Point2::new(old_position[0], old_position[1]))
+                .to_homogeneous();
+            let local_new = new_inv_isometry
+                .transform_point(&Point2::new(new_position[0], new_position[1]))
+                .to_homogeneous();
+            let local_interpolated = (1.0 - t) * local_old + t * local_new;
+            let global_interpolated =
+                Point2::from_homogeneous(interpolated_isometry * local_interpolated).unwrap();
+            position[0] = global_interpolated.x;
+            position[1] = global_interpolated.y;
+        }
+        let velocities_zipped = state.velocities.chunks_exact_mut(2).zip(
+            old_state
+                .velocities
+                .chunks_exact(2)
+                .zip(new_state.velocities.chunks_exact(2)),
+        );
+        for (velocity, (old_velocity, new_velocity)) in velocities_zipped {
+            let local_old = old_inv_isometry
+                .transform_vector(&Vector2::new(old_velocity[0], old_velocity[1]))
+                .to_homogeneous();
+            let local_new = new_inv_isometry
+                .transform_vector(&Vector2::new(new_velocity[0], new_velocity[1]))
+                .to_homogeneous();
+            let local_interpolated = (1.0 - t) * local_old + t * local_new;
+            let global_interpolated =
+                Vector2::from_homogeneous(interpolated_isometry * local_interpolated).unwrap();
+            velocity[0] = global_interpolated.x;
+            velocity[1] = global_interpolated.y;
+        }
 
         state
     }
