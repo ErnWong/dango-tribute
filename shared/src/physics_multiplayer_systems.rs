@@ -140,7 +140,7 @@ pub fn physics_multiplayer_server_diagnostic_sync_system(
     commands: &mut Commands,
     server: Res<Server<PhysicsWorld>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    mut meshes: ResMut<Assets<Mesh>>,
+    meshes: ResMut<Assets<Mesh>>,
     query: Query<(&PlayerComponent, &Handle<Mesh>, &mut Transform)>,
 ) {
     sync_from_state(
