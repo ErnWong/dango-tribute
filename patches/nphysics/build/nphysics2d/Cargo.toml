@@ -38,6 +38,7 @@ downcast-rs = "1"
 bitflags   = "1"
 ncollide2d = "0.26"
 instant    = { version = "0.1", features = [ "now" ]}
+indexmap   = "1.6.1"
 
 [target.wasm32-unknown-unknown.dependencies]
 stdweb = {version = "0.4", optional = true}

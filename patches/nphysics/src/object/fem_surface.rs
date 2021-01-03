@@ -1,16 +1,16 @@
 use either::Either;
 use std::any::Any;
-use std::collections::HashMap;
 use std::iter;
 use std::ops::AddAssign;
 use std::sync::Arc;
 
+use indexmap::IndexMap;
 use na::{
     self, Cholesky, DMatrix, DVector, DVectorSlice, DVectorSliceMut, Dynamic, Matrix2, Matrix2x3,
     Point2, Point3, RealField, Unit, Vector2, Vector3,
 };
 use ncollide::shape::{DeformationsType, Polyline, ShapeHandle};
-use ncollide::utils::{self, DeterministicState};
+use ncollide::utils;
 
 use crate::math::{
     Dim, Force, ForceType, Inertia, Isometry, Matrix, Point, RotationMatrix, SpatialVector,
@@ -450,7 +450,9 @@ impl<N: RealField> FEMSurface<N> {
             (*sa, *sb)
         }
 
-        let mut faces = HashMap::with_hasher(DeterministicState::new());
+        // Note: Using index map for deterministic ordering across platforms (linux and
+        // wasm)
+        let mut faces = IndexMap::new();
 
         for (i, elt) in self.elements.iter().enumerate() {
             let k1 = key(elt.indices.x, elt.indices.y);

@@ -3032,6 +3032,7 @@ dependencies = [
  "downcast-rs",
  "either",
  "generational-arena",
+ "indexmap",
  "instant",
  "lazy_static",
  "nalgebra",
