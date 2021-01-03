@@ -15,8 +15,11 @@ use bevy_prototype_networked_physics::{
     client::{Client, ClientState},
     events::ClientConnectionEvent,
     net::NetworkResource,
-    server::Server,
 };
+
+#[cfg(not(target_arch = "wasm32"))]
+use bevy_prototype_networked_physics::server::Server;
+
 use bevy_prototype_transform_tracker::TransformTrackingTarget;
 use lyon::{
     math::point,
@@ -59,6 +62,7 @@ pub fn physics_multiplayer_client_spawn_system(
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn physics_multiplayer_server_despawn_system(
     mut state: Local<SpawnSystemState>,
     mut server: ResMut<Server<PhysicsWorld>>,
@@ -126,6 +130,7 @@ pub fn physics_multiplayer_client_sync_system(
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn physics_multiplayer_server_diagnostic_sync_system(
     mut player_map: Local<PlayerMap>,
     commands: &mut Commands,

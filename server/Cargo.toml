@@ -13,12 +13,13 @@ default = [
   "bevy/render",
   "bevy/png",
   "bevy/bevy_wgpu",
+  "bevy_prototype_networked_physics/use-webrtc",
   "winit",
 ]
 
 [dependencies]
 shared = {path = "../shared"}
 bevy = {version = "0.4", default-features = false}
-bevy_prototype_networked_physics = {path = "../crates/bevy_prototype_networked_physics"}
+bevy_prototype_networked_physics = {path = "../crates/bevy_prototype_networked_physics", default-features = false}
 bevy_prototype_transform_tracker = {path = "../crates/bevy_prototype_transform_tracker"}
 winit = {version = "0.24.0", optional = true}

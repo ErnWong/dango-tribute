@@ -14,12 +14,13 @@ default = [
   "bevy/bevy_winit",
   "bevy/render",
   "bevy/png",
+  "bevy_prototype_networked_physics/use-webrtc",
 ]
 native = [
   "bevy/bevy_wgpu",
 ]
 web = [
-  "bevy_webgl2"
+  "bevy_webgl2",
 ]
 dynamic = [
   "bevy/dynamic",
@@ -33,6 +34,6 @@ bevy_fly_camera = {version = "0.6.0", optional = true}
 bevy_prototype_lyon = {git = "https://github.com/Nilirad/bevy_prototype_lyon", branch = "master"}
 bevy_webgl2 = {version = "0.4.0", optional = true}
 bevy_prototype_frameshader = {path = "../crates/bevy_prototype_frameshader"}
-bevy_prototype_networked_physics = {path = "../crates/bevy_prototype_networked_physics"}
+bevy_prototype_networked_physics = {path = "../crates/bevy_prototype_networked_physics", default-features = false}
 bevy_prototype_transform_tracker = {path = "../crates/bevy_prototype_transform_tracker"}
 winit = "0.24.0"

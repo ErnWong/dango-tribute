@@ -6,12 +6,13 @@ edition = "2018"
 
 [features]
 default = [
-    "bevy/render",
+  "bevy/render",
+  "bevy_prototype_networked_physics/use-webrtc",
 ]
 
 [dependencies]
 bevy = {version = "0.4", default-features = false}
-bevy_prototype_networked_physics = {path = "../crates/bevy_prototype_networked_physics"}
+bevy_prototype_networked_physics = {path = "../crates/bevy_prototype_networked_physics", default-features = false}
 bevy_prototype_transform_tracker = {path = "../crates/bevy_prototype_transform_tracker"}
 nphysics2d = "0.18"
 nalgebra = {version = "0.23.2", features = ["serde-serialize"]}
