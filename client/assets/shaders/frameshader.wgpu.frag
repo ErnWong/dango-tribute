@@ -62,6 +62,10 @@ vec2 wobbly_pos(float page, float amplitude) {
     return gl_FragCoord.xy + smoothed_rand(gl_FragCoord.xy, 10.0, page).xy * amplitude;
 }
 
+vec2 scribbly_pos(float page, float amplitude) {
+    return gl_FragCoord.xy + smoothed_rand(gl_FragCoord.xy, 3.0, page).xy * amplitude;
+}
+
 vec2 gradient(vec2 pos) {
     const float delta = 0.3;
     return vec2(
@@ -70,12 +74,11 @@ vec2 gradient(vec2 pos) {
     );
 }
 
-vec4 sketch_outline(float amplitude) {
-    float gradient = length(gradient(wobbly_pos(1.0, amplitude)));
-    float path = smoothstep(0.0, 0.01, gradient);
-    float pressure = 0.5 + 0.3 * smoothed_rand(gl_FragCoord.xy, 15.0, 1.0).x;
-    float outline = path * pressure;
-    return vec4(0.0, 0.0, 0.0, outline);
+vec4 sketch_outline(float page, float amplitude) {
+    if (source_darkness(wobbly_pos(page, amplitude)) < 0.8) {
+        return vec4(0.0);
+    }
+    return vec4(0.0, 0.0, 0.0, 1.0);
 }
 
 vec4 sketch_hatch(float page, vec2 hatch_direction, float contrast, float thickness, float variance) {
@@ -84,40 +87,43 @@ vec4 sketch_hatch(float page, vec2 hatch_direction, float contrast, float thickn
         * dot(gl_FragCoord.xy, hatch_direction)
         / dot(hatch_direction, hatch_direction);
     vec2 stretched_pos = gl_FragCoord.xy - projected_pos * (1.0 - 1.0 / length(hatch_direction));
-    float stretched_rand = rand(stretched_pos, page).a;
+    float stretched_rand = rand(stretched_pos * 2.0, page).a;
 
     // Weight the random texture with the source's darker regions.
     float weighted_rand = stretched_rand + contrast * source_darkness(wobbly_pos(2.0, 3.0));
 
     // Extract the hatch using smoothstep.
-    float hatch = smoothstep(thickness, thickness + variance, weighted_rand);
+    float hatch = 1.0 - smoothstep(thickness, thickness + variance, weighted_rand);
 
-    // Mask out the white paper.
-    hatch *= step(0.001, source_darkness(wobbly_pos(2.0, 3.0)));
-
-    // Add gaps due to the paper's dents when the hatching weight is light.
-    const float DENT_TRANSITION_WINDOW = 0.2;
-    float dent_threshold = 1.0 - pow(hatch, 0.3);
-    hatch *= smoothstep(dent_threshold, dent_threshold + DENT_TRANSITION_WINDOW, rand(gl_FragCoord.xy, 1.0).y);
+    // Mask out the white paper
+    float mask = 0.0;
+    const int BLUR_DISTANCE = 10;
+    vec2 blur_direction = hatch_direction / length(hatch_direction);
+    for (int i = 0; i < BLUR_DISTANCE; i++) {
+        vec2 sample_offset = blur_direction * float(i - BLUR_DISTANCE / 2);
+        vec2 sample_position = scribbly_pos(page, 6.0) + sample_offset;
+        mask += step(0.001, source_darkness(sample_position)) / float(BLUR_DISTANCE);
+    }
+    hatch *= mask;
 
     // Colorize.
-    return vec4(source(wobbly_pos(2.0, 3.0)), hatch);
+    return vec4(source(wobbly_pos(page, 3.0)), hatch);
 }
 
 vec4 smudge_fills(float page) {
-    return vec4(source(wobbly_pos(1.0, 3.0)), 0.5 * smoothstep(0.0, 0.1, rand(gl_FragCoord.xy, page)));
+    return vec4(source(wobbly_pos(1.0, 3.0)), 0.2 * smoothstep(0.0, 0.5, smoothed_rand(gl_FragCoord.xy, 2.0, page)));
 }
 
-vec4 paper_background() {
+vec4 paper_grain() {
     return vec4(0.9, 0.9, 0.9, 1.0)
         - 0.03 * smoothed_rand(gl_FragCoord.xy, 5.0, 0.0).x
         - 0.10 * smoothed_rand(gl_FragCoord.xy, 2.0, 0.0).x
-        + 0.01 * smoothed_rand(gl_FragCoord.xy + vec2(-1.0), 2.0, 0.0).x;
+        + 0.06 * smoothed_rand(gl_FragCoord.xy + vec2(-1.0), 2.0, 0.0).x;
 }
 
 vec4 paper_dents() {
     float dent_alpha = smoothstep(0.8, 1.0, rand(gl_FragCoord.xy, 1.0).x);
-    return vec4(paper_background().rgb, dent_alpha);
+    return vec4(paper_grain().rgb, dent_alpha);
 }
 
 void draw(vec4 colour) {
@@ -136,19 +142,23 @@ vec4 alpha(float value) {
 void main() {
     // Start with white, then mix as we go.
     o_color = vec4(1.0);
-
-    draw(paper_background());
+    draw(paper_grain());
     draw(smudge_fills(0.0));
     draw(smudge_fills(1.0));
-    draw(alpha(0.8) * sketch_hatch(0.0, polar(30.0, 10.0), 0.0, 0.4, 0.5));
-    draw(alpha(0.8) * sketch_hatch(2.0, polar(30.0, 20.0), 0.0, 0.4, 0.5));
-    draw(alpha(0.8) * sketch_hatch(3.0, polar(31.0, 10.0), 0.0, 0.4, 0.5));
-    draw(alpha(0.6) * sketch_hatch(4.0, polar(40.0, 20.0), 0.0, 0.4, 0.5));
-    draw(alpha(0.3) * sketch_hatch(5.0, polar(50.0, 10.0), 0.0, 0.4, 0.5));
-    draw(alpha(1.0) * sketch_outline(3.0));
-    draw(alpha(0.3) * sketch_outline(5.0));
+    draw(smudge_fills(2.0));
+    draw(smudge_fills(3.0));
+    draw(alpha(0.5) * sketch_hatch(0.0, polar(-30.0, 10.0 * 10.0), 0.0, 0.3, 0.5));
+    draw(alpha(0.3) * sketch_hatch(1.0, polar(-32.0, 10.0 * 10.0), 0.0, 0.3, 0.5));
+    draw(alpha(0.2) * sketch_hatch(2.0, polar(-40.0, 10.0 * 10.0), 0.0, 0.3, 0.5));
+    draw(alpha(0.3) * sketch_hatch(3.0, polar(-50.0, 10.0 * 10.0), 0.0, 0.3, 0.5));
+    draw(sketch_outline(0.0, 3.0));
+    draw(alpha(0.5) * paper_dents());
+    o_color.rgb = sqrt(o_color.rgb);
 
     if (false && gl_FragCoord.x < i_mouse.x) {
         o_color.rgb = source(gl_FragCoord.xy);
+    }
+    if (false && gl_FragCoord.y < i_mouse.y) {
+        o_color.rgb = rand(gl_FragCoord.xy, 0.0).rrr;
     }
 }
