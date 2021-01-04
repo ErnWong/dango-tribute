@@ -1,10 +1,12 @@
 use bevy::{
+    app::ScheduleRunnerSettings,
     diagnostic::{FrameTimeDiagnosticsPlugin, PrintDiagnosticsPlugin},
     prelude::*,
 };
 use bevy_prototype_networked_physics::NetworkedPhysicsServerPlugin;
 use bevy_prototype_transform_tracker::TransformTrackingFollower;
 use shared::{physics_multiplayer::PhysicsWorld, physics_multiplayer_systems, settings};
+use std::time::Duration;
 
 const SHOW_DEBUG_WINDOW: bool = true;
 
@@ -41,7 +43,10 @@ fn main() {
             .add_plugin(bevy::winit::WinitPlugin::default())
             .add_plugin(bevy::wgpu::WgpuPlugin::default());
     } else {
-        app.add_plugin(bevy::app::ScheduleRunnerPlugin::default());
+        app.add_resource(ScheduleRunnerSettings::run_loop(Duration::from_secs_f32(
+            1.0 / 60.0,
+        )))
+        .add_plugin(bevy::app::ScheduleRunnerPlugin::default());
     }
 
     app.add_plugin(NetworkedPhysicsServerPlugin::<PhysicsWorld>::new(
