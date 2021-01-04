@@ -278,6 +278,9 @@ impl Node for FrameshaderNode {
         if shaders
             .get(pipeline_descriptor.shader_stages.fragment.as_ref().unwrap())
             .is_none()
+            || shaders
+                .get(pipeline_descriptor.shader_stages.vertex.clone())
+                .is_none()
         {
             return;
         }
