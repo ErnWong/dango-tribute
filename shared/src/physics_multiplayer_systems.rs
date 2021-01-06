@@ -57,7 +57,13 @@ pub fn physics_multiplayer_client_spawn_system(
                         size: 0.6,
                         x: 0.0,
                         y: 0.0,
-                        color: Color::RED,
+                        color: match *client_id % 4 {
+                            0 => Color::RED,
+                            1 => Color::GREEN,
+                            2 => Color::ORANGE,
+                            3 => Color::BLUE,
+                            _ => Color::RED,
+                        },
                     },
                     &mut net,
                 );
