@@ -8,7 +8,7 @@ use bevy_prototype_transform_tracker::TransformTrackingFollower;
 use shared::{physics_multiplayer::PhysicsWorld, physics_multiplayer_systems, settings};
 use std::time::Duration;
 
-const SHOW_DEBUG_WINDOW: bool = true;
+const SHOW_DEBUG_WINDOW: bool = false;
 
 fn main() {
     let mut app = App::build();
