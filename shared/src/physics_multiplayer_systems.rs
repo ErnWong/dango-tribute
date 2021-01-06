@@ -54,7 +54,7 @@ pub fn physics_multiplayer_client_spawn_system(
                     PhysicsCommand::SpawnPlayer {
                         player_id: PlayerId(*client_id),
                         // TODO: Dynamically chosen...
-                        size: 0.8,
+                        size: 0.6,
                         x: 0.0,
                         y: 0.0,
                         color: Color::RED,
