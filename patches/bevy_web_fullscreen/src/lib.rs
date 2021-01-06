@@ -12,7 +12,7 @@ impl Plugin for FullViewportPlugin {
     }
 }
 
-fn get_viewport_size() -> (f32, f32) {
+fn get_viewport_size() -> ViewportResized {
     let window = web_sys::window().expect("could not get window");
     let document_element = window
         .document()
@@ -23,7 +23,10 @@ fn get_viewport_size() -> (f32, f32) {
     let width = document_element.client_width();
     let height = document_element.client_height();
 
-    (width as f32, height as f32)
+    ViewportResized {
+        width: width as f32,
+        height: height as f32,
+    }
 }
 
 pub struct ViewportResized {
@@ -48,7 +51,7 @@ impl Default for ViewportResizedEvents {
         events.borrow_mut().send(get_viewport_size().into());
         let events_cloned = events.clone();
         let event_listener = EventListener::new(&window, "resize", move |_event| {
-            events_cloned.borrow_mut().send(get_viewport_size().into());
+            events_cloned.borrow_mut().send(get_viewport_size());
         });
         Self {
             events,
