@@ -919,6 +919,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_web_fullscreen"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "gloo-events",
+ "web-sys",
+]
+
+[[package]]
 name = "bevy_webgl2"
 version = "0.4.0"
 dependencies = [
@@ -1183,6 +1192,7 @@ dependencies = [
  "bevy_prototype_lyon",
  "bevy_prototype_networked_physics",
  "bevy_prototype_transform_tracker",
+ "bevy_web_fullscreen",
  "bevy_webgl2",
  "shared",
  "winit",
@@ -2176,6 +2186,16 @@ name = "glob"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
+
+[[package]]
+name = "gloo-events"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "088514ec8ef284891c762c88a66b639b3a730134714692ee31829765c5bc814f"
+dependencies = [
+ "wasm-bindgen",
+ "web-sys",
+]
 
 [[package]]
 name = "gloo-timers"

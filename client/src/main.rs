@@ -3,6 +3,7 @@ use bevy::{
     prelude::*,
     render::{pass::ClearColor, render_graph::base::BaseRenderGraphConfig},
 };
+use bevy_web_fullscreen::FullViewportPlugin;
 
 use bevy_prototype_frameshader::FrameshaderPlugin;
 use bevy_prototype_networked_physics::NetworkedPhysicsClientPlugin;
@@ -71,6 +72,9 @@ fn main() {
 
     #[cfg(feature = "web")]
     app.add_plugin(bevy_webgl2::WebGL2Plugin);
+
+    #[cfg(feature = "web")]
+    app.add_plugin(FullViewportPlugin);
 
     app.add_plugin(NetworkedPhysicsClientPlugin::<PhysicsWorld>::new(
         settings::NETWORKED_PHYSICS_CONFIG,
