@@ -347,7 +347,7 @@ impl Player {
     fn step_horizontal_force(&mut self) {
         self.forces_state.horizontal_force = ((self.input_state.right as i32 as RealField)
             - (self.input_state.left as i32 as RealField))
-            * if self.semiderived_collision_state.has_feet_contact {
+            * if !self.semiderived_collision_state.has_feet_contact {
                 PHYSICS_CONFIG.horizontal_air_movement_force
             } else if self.input_state.roll {
                 PHYSICS_CONFIG.horizontal_rolling_movement_force
