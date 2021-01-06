@@ -151,6 +151,8 @@ pub struct PhysicsBodyMeasurements {
 }
 
 impl Player {
+    const COLLISION_MARGIN: RealField = 0.03;
+
     pub fn new(
         color: Color,
         size: f32,
@@ -169,11 +171,13 @@ impl Player {
                 .collect::<Vec<Point3<usize>>>(),
         )
         .translation(position)
-        .scale(Vector2::new(size, size))
+        .scale(Vector2::repeat(size))
         .young_modulus(1.0e2)
         .mass_damping(0.2)
         .build();
-        let collider_desc = fem_surface.boundary_collider_desc();
+        let collider_desc = fem_surface
+            .boundary_collider_desc()
+            .margin(Self::COLLISION_MARGIN);
 
         let derived_mesh_indices = fem_surface
             .deformed_indices()
