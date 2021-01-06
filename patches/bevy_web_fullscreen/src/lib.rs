@@ -14,14 +14,14 @@ impl Plugin for FullViewportPlugin {
 
 fn get_viewport_size() -> ViewportResized {
     let window = web_sys::window().expect("could not get window");
-    let document_element = window
+    let body = window
         .document()
         .expect("could not get document")
-        .document_element()
-        .expect("could not get document element");
+        .body()
+        .expect("could not get body element");
 
-    let width = document_element.client_width();
-    let height = document_element.client_height();
+    let width = body.offset_width();
+    let height = body.offset_height();
 
     ViewportResized {
         width: width as f32,
