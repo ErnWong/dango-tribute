@@ -1,9 +1,9 @@
 use crate::settings::RealField;
 use bevy::prelude::*;
-use bevy_prototype_networked_physics::world::State;
+use bevy_prototype_networked_physics::world::DisplayState;
 use nphysics2d::{
     math::{Force, ForceType},
-    nalgebra::{Isometry2, Point2, Point3, Vector2, Vector3},
+    nalgebra::{Point2, Point3, Similarity2, Vector2, Vector3},
     ncollide2d::shape::Polyline,
     object::{
         Body, DefaultBodyHandle, DefaultBodySet, DefaultColliderHandle, DefaultColliderSet,
@@ -50,8 +50,8 @@ pub struct Player {
     color: Color,
     body: DefaultBodyHandle,
     collider: DefaultColliderHandle,
-    input_state: PlayerInputState,
-    forces_state: PlayerForcesState,
+    inputs: PlayerInputState,
+    forces: PlayerForcesState,
 
     semiderived_collision_state: PlayerCollisionState,
 
@@ -61,13 +61,13 @@ pub struct Player {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct PlayerState {
+pub struct PlayerSnapshot {
     pub color: Color,
     pub size: f32,
     pub positions: Vec<RealField>,
     pub velocities: Vec<RealField>,
-    pub input_state: PlayerInputState,
-    pub forces_state: PlayerForcesState,
+    pub inputs: PlayerInputState,
+    pub forces: PlayerForcesState,
 
     // Note: While this information can be derived from the colliders,
     // we don't sync collider information with the server, so we need
@@ -75,15 +75,17 @@ pub struct PlayerState {
     // the game logic immediately after the physics update in the same timestep,
     // and have this collision information stored in the player state.
     pub semiderived_collision_state: PlayerCollisionState,
+}
 
-    #[serde(skip)]
-    pub derived_measurements: PhysicsBodyMeasurements,
-
-    #[serde(skip)]
-    pub derived_mesh_indices: Vec<u32>,
-
-    #[serde(skip)]
-    pub derived_boundary_indices: Vec<usize>,
+#[derive(Default, Clone)]
+pub struct PlayerDisplayState {
+    pub color: Color,
+    pub size: f32,
+    pub measurements: PhysicsBodyMeasurements,
+    pub local_positions: Vec<Vector2<RealField>>,
+    pub local_velocities: Vec<Vector2<RealField>>,
+    pub mesh_indices: Vec<u32>,
+    pub boundary_indices: Vec<usize>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -209,8 +211,8 @@ impl Player {
             size,
             body: body_handle,
             collider: collider_handle,
-            input_state: Default::default(),
-            forces_state: Default::default(),
+            inputs: Default::default(),
+            forces: Default::default(),
             derived_measurements: Default::default(),
             derived_mesh_indices,
             derived_boundary_indices,
@@ -227,7 +229,11 @@ impl Player {
         bodies.remove(self.body);
     }
 
-    pub fn set_state(&mut self, state: &PlayerState, bodies: &mut DefaultBodySet<RealField>) {
+    pub fn apply_snapshot(
+        &mut self,
+        snapshot: &PlayerSnapshot,
+        bodies: &mut DefaultBodySet<RealField>,
+    ) {
         let body = bodies.get_mut(self.body).unwrap();
         for (i, body_position) in body
             .deformed_positions_mut()
@@ -236,30 +242,30 @@ impl Player {
             .iter_mut()
             .enumerate()
         {
-            if let Some(state_position) = state.positions.get(i) {
-                *body_position = *state_position;
+            if let Some(snapshot_position) = snapshot.positions.get(i) {
+                *body_position = *snapshot_position;
             } else {
-                warn!("Not enough position values from state to fill body");
+                warn!("Not enough position values from snapshot to fill body");
             }
         }
         for (i, body_velocity) in body.generalized_velocity_mut().iter_mut().enumerate() {
-            if let Some(state_velocity) = state.velocities.get(i) {
-                *body_velocity = *state_velocity;
+            if let Some(snapshot_velocity) = snapshot.velocities.get(i) {
+                *body_velocity = *snapshot_velocity;
             } else {
-                warn!("Not enough velocity values from state to fill body");
+                warn!("Not enough velocity values from snapshot to fill body");
             }
         }
-        self.input_state = state.input_state.clone();
-        self.forces_state = state.forces_state.clone();
-        self.semiderived_collision_state = state.semiderived_collision_state.clone();
+        self.inputs = snapshot.inputs.clone();
+        self.forces = snapshot.forces.clone();
+        self.semiderived_collision_state = snapshot.semiderived_collision_state.clone();
     }
 
     pub fn apply_command(&mut self, command: &PlayerInputCommand) {
         match command {
-            PlayerInputCommand::Left(state) => self.input_state.left = *state,
-            PlayerInputCommand::Right(state) => self.input_state.right = *state,
-            PlayerInputCommand::Jump(state) => self.input_state.jump = *state,
-            PlayerInputCommand::Roll(state) => self.input_state.roll = *state,
+            PlayerInputCommand::Left(state) => self.inputs.left = *state,
+            PlayerInputCommand::Right(state) => self.inputs.right = *state,
+            PlayerInputCommand::Jump(state) => self.inputs.jump = *state,
+            PlayerInputCommand::Roll(state) => self.inputs.roll = *state,
         }
     }
 
@@ -336,24 +342,23 @@ impl Player {
     }
 
     fn step_variable_jump_force(&mut self, dt: RealField) {
-        self.forces_state.jump_force -= PHYSICS_CONFIG.variable_jump_force_decay * dt;
-        if !self.input_state.jump {
-            self.forces_state.jump_force = 0.0;
-        } else if self.forces_state.jump_force <= 0.0
-            && self.semiderived_collision_state.has_feet_contact
+        self.forces.jump_force -= PHYSICS_CONFIG.variable_jump_force_decay * dt;
+        if !self.inputs.jump {
+            self.forces.jump_force = 0.0;
+        } else if self.forces.jump_force <= 0.0 && self.semiderived_collision_state.has_feet_contact
         {
-            self.forces_state.jump_force = PHYSICS_CONFIG.variable_jump_force_initial;
-        } else if self.forces_state.jump_force < 0.0 {
-            self.forces_state.jump_force = 0.0;
+            self.forces.jump_force = PHYSICS_CONFIG.variable_jump_force_initial;
+        } else if self.forces.jump_force < 0.0 {
+            self.forces.jump_force = 0.0;
         }
     }
 
     fn step_horizontal_force(&mut self) {
-        self.forces_state.horizontal_force = ((self.input_state.right as i32 as RealField)
-            - (self.input_state.left as i32 as RealField))
+        self.forces.horizontal_force = ((self.inputs.right as i32 as RealField)
+            - (self.inputs.left as i32 as RealField))
             * if !self.semiderived_collision_state.has_feet_contact {
                 PHYSICS_CONFIG.horizontal_air_movement_force
-            } else if self.input_state.roll {
+            } else if self.inputs.roll {
                 PHYSICS_CONFIG.horizontal_rolling_movement_force
             } else {
                 PHYSICS_CONFIG.horizontal_crawling_movement_force
@@ -362,14 +367,14 @@ impl Player {
 
     fn step_crawl_force_peak_pos(&mut self, dt: RealField) -> RealField {
         // Timer counts upwards from 0 and wraps around at 1.0
-        self.forces_state.crawl_side_timer += PHYSICS_CONFIG.crawl_side_frequency * dt;
-        self.forces_state.crawl_side_timer %= 1.0;
+        self.forces.crawl_side_timer += PHYSICS_CONFIG.crawl_side_frequency * dt;
+        self.forces.crawl_side_timer %= 1.0;
 
         // We want peak pos to oscillate between -1.0 and 1.0
-        if self.forces_state.crawl_side_timer > 0.5 {
-            3.0 - 4.0 * self.forces_state.crawl_side_timer
+        if self.forces.crawl_side_timer > 0.5 {
+            3.0 - 4.0 * self.forces.crawl_side_timer
         } else {
-            4.0 * self.forces_state.crawl_side_timer - 1.0
+            4.0 * self.forces.crawl_side_timer - 1.0
         }
     }
 
@@ -380,9 +385,9 @@ impl Player {
         crawl_force_peak_pos: RealField,
         drag: RealField,
     ) {
-        let jump_force_per_part = self.forces_state.jump_force / body.num_parts() as RealField;
+        let jump_force_per_part = self.forces.jump_force / body.num_parts() as RealField;
         let average_horizontal_force_per_part =
-            self.forces_state.horizontal_force / body.num_parts() as RealField;
+            self.forces.horizontal_force / body.num_parts() as RealField;
         for i in 0..body.num_parts() {
             let horizontal_force = if should_crawl {
                 let pos = body.part(i).unwrap().position().translation.vector.x
@@ -467,9 +472,8 @@ impl Player {
 
         self.update_measurements(body);
 
-        let should_lock_rotation = !self.input_state.roll;
-        let should_crawl =
-            !self.input_state.roll && self.semiderived_collision_state.has_feet_contact;
+        let should_lock_rotation = !self.inputs.roll;
+        let should_crawl = !self.inputs.roll && self.semiderived_collision_state.has_feet_contact;
         let should_apply_drag = self.semiderived_collision_state.has_feet_contact;
 
         self.step_variable_jump_force(dt);
@@ -501,53 +505,80 @@ impl Player {
         self.semiderived_collision_state.has_feet_contact =
             self.has_feet_contact(colliders, geometrical_world);
     }
-}
 
-impl PlayerState {
-    pub fn from_player(player: &Player, bodies: &DefaultBodySet<RealField>) -> Self {
-        let body = bodies.get(player.body).unwrap();
-        Self {
-            color: player.color,
-            size: player.size,
+    pub fn snapshot(&self, bodies: &DefaultBodySet<RealField>) -> PlayerSnapshot {
+        let body = bodies.get(self.body).unwrap();
+        PlayerSnapshot {
+            color: self.color,
+            size: self.size,
             positions: body.deformed_positions().unwrap().1.into(),
             velocities: body.generalized_velocity().iter().copied().collect(),
-            input_state: player.input_state.clone(),
-            forces_state: player.forces_state.clone(),
-            semiderived_collision_state: player.semiderived_collision_state.clone(),
-            derived_measurements: player.derived_measurements.clone(),
-            derived_mesh_indices: player.derived_mesh_indices.clone(),
-            derived_boundary_indices: player.derived_boundary_indices.clone(),
+            inputs: self.inputs.clone(),
+            forces: self.forces.clone(),
+            semiderived_collision_state: self.semiderived_collision_state.clone(),
+        }
+    }
+
+    pub fn display_state(&self, bodies: &DefaultBodySet<RealField>) -> PlayerDisplayState {
+        let body = bodies.get(self.body).unwrap();
+        let to_local_coords = Similarity2::new(
+            self.derived_measurements.center_of_mass,
+            self.derived_measurements.mean_angle,
+            self.size,
+        )
+        .inverse();
+        PlayerDisplayState {
+            color: self.color,
+            size: self.size,
+            measurements: self.derived_measurements.clone(),
+            local_positions: body
+                .deformed_positions()
+                .unwrap()
+                .1
+                .chunks_exact(2)
+                .map(|pos| {
+                    to_local_coords.transform_point(&Point2::new(pos[0], pos[1]))
+                        - Point2::new(0.0, 0.0)
+                })
+                .collect(),
+            local_velocities: body
+                .generalized_velocity()
+                .iter()
+                .collect::<Vec<_>>()
+                .chunks_exact(2)
+                .map(|v| to_local_coords.transform_vector(&Vector2::new(*v[0], *v[1])))
+                .collect(),
+            mesh_indices: self.derived_mesh_indices.clone(),
+            boundary_indices: self.derived_boundary_indices.clone(),
         }
     }
 }
 
-impl State for PlayerState {
+impl DisplayState for PlayerDisplayState {
     fn from_interpolation(old_state: &Self, new_state: &Self, t: f32) -> Self {
         let mut state = new_state.clone();
 
         // Nonlinearly interpolate the derived mean angles.
-        let weighted_old_sine = (1.0 - t) * old_state.derived_measurements.mean_angle.sin();
-        let weighted_old_cosine = (1.0 - t) * old_state.derived_measurements.mean_angle.cos();
-        let weighted_new_sine = t * new_state.derived_measurements.mean_angle.sin();
-        let weighted_new_cosine = t * new_state.derived_measurements.mean_angle.cos();
+        let weighted_old_sine = (1.0 - t) * old_state.measurements.mean_angle.sin();
+        let weighted_old_cosine = (1.0 - t) * old_state.measurements.mean_angle.cos();
+        let weighted_new_sine = t * new_state.measurements.mean_angle.sin();
+        let weighted_new_cosine = t * new_state.measurements.mean_angle.cos();
         let interpolated_sine = weighted_old_sine + weighted_new_sine;
         let interpolated_cosine = weighted_old_cosine + weighted_new_cosine;
-        state.derived_measurements.mean_angle = interpolated_sine.atan2(interpolated_cosine);
+        state.measurements.mean_angle = interpolated_sine.atan2(interpolated_cosine);
 
         // Lerp the other derived measurements.
-        state.derived_measurements.angular_momentum = (1.0 - t)
-            * old_state.derived_measurements.angular_momentum
-            + t * new_state.derived_measurements.angular_momentum;
-        state.derived_measurements.velocity = (1.0 - t) * old_state.derived_measurements.velocity
-            + t * new_state.derived_measurements.velocity;
-        state.derived_measurements.sum_of_radius_squared = (1.0 - t)
-            * old_state.derived_measurements.sum_of_radius_squared
-            + t * new_state.derived_measurements.sum_of_radius_squared;
-        state.derived_measurements.mass = (1.0 - t) * old_state.derived_measurements.mass
-            + t * new_state.derived_measurements.mass;
-        state.derived_measurements.center_of_mass = (1.0 - t)
-            * old_state.derived_measurements.center_of_mass
-            + t * new_state.derived_measurements.center_of_mass;
+        state.measurements.angular_momentum = (1.0 - t) * old_state.measurements.angular_momentum
+            + t * new_state.measurements.angular_momentum;
+        state.measurements.velocity =
+            (1.0 - t) * old_state.measurements.velocity + t * new_state.measurements.velocity;
+        state.measurements.sum_of_radius_squared = (1.0 - t)
+            * old_state.measurements.sum_of_radius_squared
+            + t * new_state.measurements.sum_of_radius_squared;
+        state.measurements.mass =
+            (1.0 - t) * old_state.measurements.mass + t * new_state.measurements.mass;
+        state.measurements.center_of_mass = (1.0 - t) * old_state.measurements.center_of_mass
+            + t * new_state.measurements.center_of_mass;
 
         // Lerp the positions and velocities in local coordinates.
         // We don't lerp the global positions because that would cause the interpolated body to
@@ -555,58 +586,23 @@ impl State for PlayerState {
         // TODO: We can possibly vectorize out the loops.
         // TODO: We can possible cache the local coordinate results since that's what we use in the
         // systems later on.
-        let old_inv_isometry = Isometry2::new(
-            old_state.derived_measurements.center_of_mass,
-            old_state.derived_measurements.mean_angle,
-        )
-        .inverse();
-        let new_inv_isometry = Isometry2::new(
-            new_state.derived_measurements.center_of_mass,
-            new_state.derived_measurements.mean_angle,
-        )
-        .inverse();
-        let interpolated_isometry = Isometry2::new(
-            state.derived_measurements.center_of_mass,
-            state.derived_measurements.mean_angle,
-        )
-        .to_homogeneous();
-        let positions_zipped = state.positions.chunks_exact_mut(2).zip(
+        let positions_zipped = state.local_positions.iter_mut().zip(
             old_state
-                .positions
-                .chunks_exact(2)
-                .zip(new_state.positions.chunks_exact(2)),
+                .local_positions
+                .iter()
+                .zip(new_state.local_positions.iter()),
         );
         for (position, (old_position, new_position)) in positions_zipped {
-            let local_old = old_inv_isometry
-                .transform_point(&Point2::new(old_position[0], old_position[1]))
-                .to_homogeneous();
-            let local_new = new_inv_isometry
-                .transform_point(&Point2::new(new_position[0], new_position[1]))
-                .to_homogeneous();
-            let local_interpolated = (1.0 - t) * local_old + t * local_new;
-            let global_interpolated =
-                Point2::from_homogeneous(interpolated_isometry * local_interpolated).unwrap();
-            position[0] = global_interpolated.x;
-            position[1] = global_interpolated.y;
+            *position = (1.0 - t) * old_position + t * new_position;
         }
-        let velocities_zipped = state.velocities.chunks_exact_mut(2).zip(
+        let velocities_zipped = state.local_velocities.iter_mut().zip(
             old_state
-                .velocities
-                .chunks_exact(2)
-                .zip(new_state.velocities.chunks_exact(2)),
+                .local_velocities
+                .iter()
+                .zip(new_state.local_velocities.iter()),
         );
         for (velocity, (old_velocity, new_velocity)) in velocities_zipped {
-            let local_old = old_inv_isometry
-                .transform_vector(&Vector2::new(old_velocity[0], old_velocity[1]))
-                .to_homogeneous();
-            let local_new = new_inv_isometry
-                .transform_vector(&Vector2::new(new_velocity[0], new_velocity[1]))
-                .to_homogeneous();
-            let local_interpolated = (1.0 - t) * local_old + t * local_new;
-            let global_interpolated =
-                Vector2::from_homogeneous(interpolated_isometry * local_interpolated).unwrap();
-            velocity[0] = global_interpolated.x;
-            velocity[1] = global_interpolated.y;
+            *velocity = (1.0 - t) * old_velocity + t * new_velocity;
         }
 
         state

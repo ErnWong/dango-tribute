@@ -20,4 +20,4 @@ nalgebra = {version = "0.23.2", features = ["serde-serialize"]}
 lyon = "0.16.2"
 num = "0.3.1"
 serde="1.0.118"
-splines = {version = "3.5.1", features = ["impl-glam"]}
+splines = {version = "3.5.1", features = ["impl-nalgebra"]}

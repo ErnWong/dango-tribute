@@ -1,6 +1,6 @@
 use crate::{
-    physics_multiplayer::{PhysicsCommand, PhysicsState, PhysicsWorld},
-    player::{PlayerId, PlayerState},
+    physics_multiplayer::{PhysicsCommand, PhysicsDisplayState, PhysicsWorld},
+    player::{PlayerDisplayState, PlayerId},
 };
 use bevy::{
     prelude::*,
@@ -128,7 +128,7 @@ pub fn physics_multiplayer_client_sync_system(
 ) {
     if let ClientState::Ready(ready_client) = client.state() {
         sync_from_state(
-            ready_client.world_state(),
+            ready_client.display_state(),
             PlayerId(ready_client.client_id()),
             &mut player_map,
             commands,
@@ -150,7 +150,7 @@ pub fn physics_multiplayer_server_diagnostic_sync_system(
     query: Query<(&PlayerComponent, &Handle<Mesh>, &mut Transform)>,
 ) {
     sync_from_state(
-        &server.world_state(),
+        &server.display_state(),
         PlayerId(0),
         &mut player_map,
         commands,
@@ -162,7 +162,7 @@ pub fn physics_multiplayer_server_diagnostic_sync_system(
 }
 
 fn sync_from_state(
-    world_state: &PhysicsState,
+    world_state: &PhysicsDisplayState,
     player_to_track: PlayerId,
     player_map: &mut PlayerMap,
     commands: &mut Commands,
@@ -185,7 +185,7 @@ fn sync_from_state(
         let mut transform = Transform::default();
         update_transform(&mut transform, player_state);
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-        update_mesh(&mut mesh, player_state, &transform, draw_mode);
+        update_mesh(&mut mesh, player_state, draw_mode);
         let entity = commands
             .spawn(PlayerBundle {
                 sprite: Sprite {
@@ -252,60 +252,49 @@ fn sync_from_state(
             trace!("Updating player {:?}", player_id);
             update_transform(&mut transform, player_state);
             let mesh = meshes.get_mut(mesh_handle).unwrap();
-            update_mesh(mesh, player_state, &transform, draw_mode);
+            update_mesh(mesh, player_state, draw_mode);
         }
     }
 }
 
-fn update_transform(transform: &mut Transform, player_state: &PlayerState) {
+fn update_transform(transform: &mut Transform, player_state: &PlayerDisplayState) {
     transform.scale = Vec3::one() * player_state.size;
-    transform.translation.x = player_state.derived_measurements.center_of_mass.x;
-    transform.translation.y = player_state.derived_measurements.center_of_mass.y;
-    transform.rotation = Quat::from_rotation_z(player_state.derived_measurements.mean_angle);
+    transform.translation.x = player_state.measurements.center_of_mass.x;
+    transform.translation.y = player_state.measurements.center_of_mass.y;
+    transform.rotation = Quat::from_rotation_z(player_state.measurements.mean_angle);
 }
 
-fn update_mesh(
-    mesh: &mut Mesh,
-    player_state: &PlayerState,
-    transform: &Transform,
-    draw_mode: DrawMode,
-) {
-    let to_local_coords = transform.compute_matrix().inverse();
-    let local_coords_iter = player_state
-        .positions
-        .chunks(2)
-        .map(|pos| to_local_coords.transform_point3(Vec3::new(pos[0], pos[1], 0.0)));
+fn update_mesh(mesh: &mut Mesh, player_state: &PlayerDisplayState, draw_mode: DrawMode) {
     let vertex_count;
 
     match draw_mode {
         DrawMode::Poly => {
-            mesh.set_indices(Some(Indices::U32(
-                player_state.derived_mesh_indices.clone(),
-            )));
+            mesh.set_indices(Some(Indices::U32(player_state.mesh_indices.clone())));
             mesh.set_attribute(
                 Mesh::ATTRIBUTE_POSITION,
-                local_coords_iter
-                    .map(|v| v.into())
+                player_state
+                    .local_positions
+                    .iter()
+                    .map(|pos| [pos.x, pos.y, 0.0])
                     .collect::<Vec<[f32; 3]>>(),
             );
-            vertex_count = player_state.positions.len() / 2;
+            vertex_count = player_state.local_positions.len() / 2;
         }
 
         DrawMode::Spline => {
             let mut spline_keys = vec![];
-            let local_coords = local_coords_iter.collect::<Vec<Vec3>>();
 
             // Note: We are repeating the first 3 vertices: 2 to provide context to the
             // cubic spline interpolation, and 1 more to close the loop.
             let wrapped_boundary_indices = player_state
-                .derived_boundary_indices
+                .boundary_indices
                 .iter()
                 .cycle()
-                .take(player_state.derived_boundary_indices.len() + 3);
+                .take(player_state.boundary_indices.len() + 3);
             for boundary_index in wrapped_boundary_indices {
                 spline_keys.push(Key::new(
                     spline_keys.len() as f32,
-                    local_coords[*boundary_index],
+                    player_state.local_positions[*boundary_index],
                     Interpolation::CatmullRom,
                 ));
             }
@@ -316,7 +305,7 @@ fn update_mesh(
             let spline = Spline::from_vec(spline_keys);
 
             const SUBDIVISIONS: usize = 4;
-            for i in 0..(player_state.derived_boundary_indices.len() * SUBDIVISIONS) {
+            for i in 0..(player_state.boundary_indices.len() * SUBDIVISIONS) {
                 // Note: Start at offset of 1 (since key 0 is used for interpolation context).
                 let t = (i as f32) / (SUBDIVISIONS as f32) + 1.0;
                 if let Some(p) = spline.sample(t) {

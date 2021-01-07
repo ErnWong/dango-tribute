@@ -1,5 +1,5 @@
 use crate::{
-    player::{Player, PlayerId, PlayerInputCommand, PlayerState},
+    player::{Player, PlayerDisplayState, PlayerId, PlayerInputCommand, PlayerSnapshot},
     settings,
     settings::RealField,
 };
@@ -7,7 +7,7 @@ use bevy::prelude::*;
 use bevy_prototype_networked_physics::{
     command::Command,
     fixed_timestepper::Stepper,
-    world::{State, World},
+    world::{DisplayState, World},
 };
 use nphysics2d::{
     force_generator::DefaultForceGeneratorSet,
@@ -47,8 +47,14 @@ pub enum PhysicsCommand {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct PhysicsState {
-    players: HashMap<PlayerId, PlayerState>,
+pub struct PhysicsSnapshot {
+    players: HashMap<PlayerId, PlayerSnapshot>,
+}
+
+//#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Clone, Default)]
+pub struct PhysicsDisplayState {
+    players: HashMap<PlayerId, PlayerDisplayState>,
 }
 
 impl Default for PhysicsWorld {
@@ -84,7 +90,8 @@ impl Default for PhysicsWorld {
 
 impl World for PhysicsWorld {
     type CommandType = PhysicsCommand;
-    type StateType = PhysicsState;
+    type SnapshotType = PhysicsSnapshot;
+    type DisplayStateType = PhysicsDisplayState;
 
     fn command_is_valid(command: &PhysicsCommand, client_id: usize) -> bool {
         let player_id = match command {
@@ -131,26 +138,26 @@ impl World for PhysicsWorld {
         }
     }
 
-    fn set_state(&mut self, target_state: PhysicsState) {
+    fn apply_snapshot(&mut self, snapshot: PhysicsSnapshot) {
         let bodies = &mut self.bodies;
         let colliders = &mut self.colliders;
         self.players.retain(|player_id, player| {
-            if !target_state.players.contains_key(player_id) {
+            if !snapshot.players.contains_key(player_id) {
                 player.deregister(bodies, colliders);
                 false
             } else {
                 true
             }
         });
-        for (player_id, player_state) in &target_state.players {
+        for (player_id, player_snapshot) in &snapshot.players {
             let player = if let Some(player) = self.players.get_mut(player_id) {
                 player
             } else {
                 self.players.insert(
                     *player_id,
                     Player::new(
-                        player_state.color,
-                        player_state.size,
+                        player_snapshot.color,
+                        player_snapshot.size,
                         Vector2::new(0.0, 0.0),
                         bodies,
                         colliders,
@@ -158,16 +165,24 @@ impl World for PhysicsWorld {
                 );
                 self.players.get_mut(player_id).unwrap()
             };
-            player.set_state(player_state, bodies);
+            player.apply_snapshot(player_snapshot, bodies);
         }
     }
 
-    fn state(&self) -> PhysicsState {
+    fn snapshot(&self) -> PhysicsSnapshot {
         let mut players = HashMap::new();
         for (player_id, player) in &self.players {
-            players.insert(*player_id, PlayerState::from_player(player, &self.bodies));
+            players.insert(*player_id, player.snapshot(&self.bodies));
         }
-        PhysicsState { players }
+        PhysicsSnapshot { players }
+    }
+
+    fn display_state(&self) -> PhysicsDisplayState {
+        let mut players = HashMap::new();
+        for (player_id, player) in &self.players {
+            players.insert(*player_id, player.display_state(&self.bodies));
+        }
+        PhysicsDisplayState { players }
     }
 }
 
@@ -192,13 +207,13 @@ impl Stepper for PhysicsWorld {
 
 impl Command for PhysicsCommand {}
 
-impl PhysicsState {
-    pub fn players(&self) -> &HashMap<PlayerId, PlayerState> {
+impl PhysicsDisplayState {
+    pub fn players(&self) -> &HashMap<PlayerId, PlayerDisplayState> {
         &self.players
     }
 }
 
-impl State for PhysicsState {
+impl DisplayState for PhysicsDisplayState {
     fn from_interpolation(old_state: &Self, new_state: &Self, t: f32) -> Self {
         let mut players = HashMap::new();
 
@@ -207,7 +222,7 @@ impl State for PhysicsState {
             if let Some(old_player_state) = old_state.players.get(player_id) {
                 players.insert(
                     *player_id,
-                    PlayerState::from_interpolation(old_player_state, new_player_state, t),
+                    PlayerDisplayState::from_interpolation(old_player_state, new_player_state, t),
                 );
             } else {
                 players.insert(*player_id, new_player_state.clone());
