@@ -113,7 +113,7 @@ pub struct PlayerForcesState {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PlayerCollisionState {
-    feet_contact: Option<BodyId>,
+    has_feet_contact: bool,
 }
 
 const PLAYER_FEM_MESH_VERTICES: [[RealField; 2]; 9] = [
@@ -320,39 +320,32 @@ impl Player {
         };
     }
 
-    fn update_feet_contact(
+    fn has_feet_contact(
         &self,
         colliders: &DefaultColliderSet<RealField>,
         geometrical_world: &DefaultGeometricalWorld<RealField>,
-    ) {
-        self.semiderived_collision_state.feet_contact = None;
+    ) -> bool {
         let collider = colliders.get(self.collider).unwrap();
         if collider.graph_index().is_some() {
-            for (_, collider_a, _, collider_b, _, manifold) in geometrical_world
+            for (_, _, _, _, _, manifold) in geometrical_world
                 .contacts_with(colliders, self.collider, true)
                 .unwrap()
             {
                 for contact in manifold.contacts() {
                     if contact.contact.world1.y < self.derived_measurements.center_of_mass.y {
-                        let body_a = collider_a.body();
-                        let body_b = collider_b.body();
-                        if body_a == self.body {
-                            self.semiderived_collision_state.feet_contact = Some(body_b);
-                        } else {
-                            self.semiderived_collision_state.feet_contact = Some(body_a);
-                        }
+                        return true;
                     }
                 }
             }
         }
+        return false;
     }
 
     fn step_variable_jump_force(&mut self, dt: RealField) {
         self.forces.jump_force -= PHYSICS_CONFIG.variable_jump_force_decay * dt;
         if !self.inputs.jump {
             self.forces.jump_force = 0.0;
-        } else if self.forces.jump_force <= 0.0
-            && self.semiderived_collision_state.feet_contact.is_some()
+        } else if self.forces.jump_force <= 0.0 && self.semiderived_collision_state.has_feet_contact
         {
             self.forces.jump_force = PHYSICS_CONFIG.variable_jump_force_initial;
         } else if self.forces.jump_force < 0.0 {
@@ -363,7 +356,7 @@ impl Player {
     fn step_horizontal_force(&mut self) {
         self.forces.horizontal_force = ((self.inputs.right as i32 as RealField)
             - (self.inputs.left as i32 as RealField))
-            * if !self.semiderived_collision_state.feet_contact.is_some() {
+            * if !self.semiderived_collision_state.has_feet_contact {
                 PHYSICS_CONFIG.horizontal_air_movement_force
             } else if self.inputs.roll {
                 PHYSICS_CONFIG.horizontal_rolling_movement_force
@@ -480,9 +473,8 @@ impl Player {
         self.update_measurements(body);
 
         let should_lock_rotation = !self.inputs.roll;
-        let should_crawl =
-            !self.inputs.roll && self.semiderived_collision_state.feet_contact.is_some();
-        let should_apply_drag = self.semiderived_collision_state.feet_contact.is_some();
+        let should_crawl = !self.inputs.roll && self.semiderived_collision_state.has_feet_contact;
+        let should_apply_drag = self.semiderived_collision_state.has_feet_contact;
 
         self.step_variable_jump_force(dt);
         self.step_horizontal_force();
@@ -510,7 +502,8 @@ impl Player {
         colliders: &DefaultColliderSet<RealField>,
         geometrical_world: &DefaultGeometricalWorld<RealField>,
     ) {
-        self.update_feet_contact(colliders, geometrical_world);
+        self.semiderived_collision_state.has_feet_contact =
+            self.has_feet_contact(colliders, geometrical_world);
     }
 
     pub fn snapshot(&self, bodies: &DefaultBodySet<RealField>) -> PlayerSnapshot {
