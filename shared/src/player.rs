@@ -153,7 +153,7 @@ pub struct PhysicsBodyMeasurements {
 }
 
 impl Player {
-    const COLLISION_MARGIN: RealField = 0.03;
+    const COLLISION_MARGIN: RealField = 0.07;
 
     pub fn new(
         color: Color,
