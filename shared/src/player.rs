@@ -540,6 +540,7 @@ impl Player {
                     to_local_coords.transform_point(&Point2::new(pos[0], pos[1]))
                         - Point2::new(0.0, 0.0)
                 })
+                .map(|pos| pos * (self.size + Self::COLLISION_MARGIN) / self.size)
                 .collect(),
             local_velocities: body
                 .generalized_velocity()
