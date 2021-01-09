@@ -39,7 +39,7 @@ fn main() {
     // TODO: Fix this by loading all assets from the main setup startup system.
     app.add_startup_system(setup_hot_reloading.system());
 
-    app.add_resource(ClearColor(Color::WHITE))
+    app.add_resource(ClearColor(Color::DARK_GRAY))
         .add_resource(bevy::log::LogSettings {
             level: bevy::log::Level::INFO,
             ..Default::default()
