@@ -21,7 +21,7 @@ vec4 read_texture(texture2D the_texture, vec2 position) {
     return texture(sampler2D(the_texture, i_sampler), position);
 }
 
-// The rest can be copied from the webgl2 version.
+// The rest can be copied to the wgpu version.
 // The webgl2 version shall be the source of truth.
 
 vec2 pos2uv(vec2 pos) {
@@ -74,10 +74,18 @@ vec2 gradient(vec2 pos) {
     );
 }
 
+float vignette_mask() {
+    const float SQUARENESS = 2.7;
+    vec2 r = gl_FragCoord.xy / i_resolution * 2.0 - 1.0;
+    float t = pow(pow(abs(r.x), SQUARENESS) + pow(abs(r.y), SQUARENESS), 1.0 / SQUARENESS);
+    return 1.0 - smoothstep(0.6, 1.2, t);
+}
+
 vec4 sketch_outline(float page, float amplitude) {
     if (source_darkness(wobbly_pos(page, amplitude)) < 0.8) {
         return vec4(0.0);
     }
+    float strength = mix(vignette_mask(), 1.0, 0.3);
     return vec4(0.0, 0.0, 0.0, 1.0);
 }
 
@@ -95,7 +103,7 @@ vec4 sketch_hatch(float page, vec2 hatch_direction, float contrast, float thickn
     // Extract the hatch using smoothstep.
     float hatch = 1.0 - smoothstep(thickness, thickness + variance, weighted_rand);
 
-    // Mask out the white paper
+    // Mask out the white paper.
     float mask = 0.0;
     const int BLUR_DISTANCE = 10;
     vec2 blur_direction = hatch_direction / length(hatch_direction);
@@ -106,12 +114,18 @@ vec4 sketch_hatch(float page, vec2 hatch_direction, float contrast, float thickn
     }
     hatch *= mask;
 
+    // Hatch less near the screen edge.
+    hatch *= mix(vignette_mask(), 1.0, 0.4);
+
     // Colorize.
     return vec4(source(wobbly_pos(page, 3.0)), hatch);
 }
 
 vec4 smudge_fills(float page) {
-    return vec4(source(wobbly_pos(1.0, 3.0)), 0.2 * smoothstep(0.0, 0.5, smoothed_rand(gl_FragCoord.xy, 2.0, page)));
+    vec3 color = source(wobbly_pos(1.0, 3.0));
+    float strength = 0.2 * smoothstep(0.0, 0.5, smoothed_rand(gl_FragCoord.xy, 2.0, page).r);
+    strength *= vignette_mask();
+    return vec4(color, strength);
 }
 
 vec4 paper_grain() {
@@ -153,6 +167,7 @@ void main() {
     draw(alpha(0.3) * sketch_hatch(3.0, polar(-50.0, 10.0 * 10.0), 0.0, 0.3, 0.5));
     draw(sketch_outline(0.0, 3.0));
     draw(alpha(0.5) * paper_dents());
+    o_color.rgb *= mix(vignette_mask(), 1.0, 0.5);
     o_color.rgb = sqrt(o_color.rgb);
 
     if (false && gl_FragCoord.x < i_mouse.x) {
