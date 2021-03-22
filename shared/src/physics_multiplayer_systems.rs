@@ -311,7 +311,6 @@ fn sync_from_state(
 
     for player_id in to_despawn {
         info!("Despawning player {:?}", player_id);
-        warn!("Skipping despawn because it's buggy!");
         commands.despawn_recursive(player_map.0.remove(player_id).unwrap());
     }
 
