@@ -28,7 +28,10 @@ use bevy_prototype_transform_tracker::TransformTrackingTarget;
 use lyon::{
     math::point,
     path::Path,
-    tessellation::{BuffersBuilder, FillAttributes, FillOptions, FillTessellator, VertexBuffers},
+    tessellation::{
+        BuffersBuilder, FillAttributes, FillOptions, FillTessellator, StrokeAttributes,
+        StrokeOptions, StrokeTessellator, VertexBuffers,
+    },
 };
 use splines::{Interpolation, Key, Spline};
 use std::collections::{HashMap, HashSet};
@@ -92,11 +95,15 @@ pub fn physics_multiplayer_server_despawn_system(
     }
 }
 
+#[derive(Clone)]
+pub struct OutlineMesh(Handle<Mesh>);
+
 #[derive(Bundle)]
 pub struct PlayerBundle {
     // TODO: Is sprite needed? Can we not use the spritesheet pipeline?
     pub sprite: Sprite,
     pub mesh: Handle<Mesh>,
+    pub outline_mesh: OutlineMesh,
     pub material: Handle<ColorMaterial>,
     pub main_pass: MainPass,
     pub draw: Draw,
@@ -124,7 +131,12 @@ pub fn physics_multiplayer_client_sync_system(
     client: Res<Client<PhysicsWorld>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     meshes: ResMut<Assets<Mesh>>,
-    query: Query<(&PlayerComponent, &Handle<Mesh>, &mut Transform)>,
+    query: Query<(
+        &PlayerComponent,
+        &Handle<Mesh>,
+        &mut Transform,
+        &OutlineMesh,
+    )>,
 ) {
     if let ClientState::Ready(ready_client) = client.state() {
         sync_from_state(
@@ -147,7 +159,12 @@ pub fn physics_multiplayer_server_diagnostic_sync_system(
     server: Res<Server<PhysicsWorld>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     meshes: ResMut<Assets<Mesh>>,
-    query: Query<(&PlayerComponent, &Handle<Mesh>, &mut Transform)>,
+    query: Query<(
+        &PlayerComponent,
+        &Handle<Mesh>,
+        &mut Transform,
+        &OutlineMesh,
+    )>,
 ) {
     sync_from_state(
         &server.display_state(),
@@ -168,7 +185,12 @@ fn sync_from_state(
     commands: &mut Commands,
     materials: &mut Assets<ColorMaterial>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut query: Query<(&PlayerComponent, &Handle<Mesh>, &mut Transform)>,
+    mut query: Query<(
+        &PlayerComponent,
+        &Handle<Mesh>,
+        &mut Transform,
+        &OutlineMesh,
+    )>,
     draw_mode: DrawMode,
 ) {
     let new_player_states = world_state.players();
@@ -183,16 +205,26 @@ fn sync_from_state(
         info!("Spawning player {:?}", player_id);
         let player_state = new_player_states.get(player_id).unwrap();
         let mut transform = Transform::default();
-        update_transform(&mut transform, player_state);
-        let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-        update_mesh(&mut mesh, player_state, draw_mode);
+        update_transform(&mut transform, player_id, player_state);
+        let mesh = Mesh::new(PrimitiveTopology::TriangleList);
+        let outline_mesh = Mesh::new(PrimitiveTopology::TriangleList);
+        let mesh_handle = meshes.add(mesh);
+        let outline_mesh_handle = OutlineMesh(meshes.add(outline_mesh));
+        update_mesh(
+            &mut meshes,
+            &mesh_handle,
+            &outline_mesh_handle.0,
+            player_state,
+            draw_mode,
+        );
         let entity = commands
             .spawn(PlayerBundle {
                 sprite: Sprite {
                     size: Vec2::one(),
                     ..Default::default()
                 },
-                mesh: meshes.add(mesh),
+                mesh: mesh_handle,
+                outline_mesh: outline_mesh_handle.clone(),
                 material: materials.add(player_state.color.into()),
                 main_pass: MainPass,
                 draw: Default::default(),
@@ -231,7 +263,33 @@ fn sync_from_state(
                     },
                     TessellationMode::Fill(&FillOptions::default()),
                     Vec3::new(0.1, 0.3, 1.0),
-                ));
+                ))
+                .spawn(SpriteBundle {
+                    sprite: Sprite {
+                        size: Vec2::one(),
+                        ..Default::default()
+                    },
+                    mesh: outline_mesh_handle.0,
+                    material: materials.add(
+                        Color::rgb(
+                            player_state.color.r() * 0.5,
+                            player_state.color.g() * 0.5,
+                            player_state.color.b() * 0.5,
+                        )
+                        .into(),
+                    ),
+                    main_pass: MainPass,
+                    draw: Default::default(),
+                    visible: Visible {
+                        is_transparent: true,
+                        ..Default::default()
+                    },
+                    render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
+                        SPRITE_PIPELINE_HANDLE.typed(),
+                    )]),
+                    transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)),
+                    global_transform: GlobalTransform::default(),
+                });
         });
 
         if *player_id == player_to_track {
@@ -243,32 +301,53 @@ fn sync_from_state(
 
     for player_id in to_despawn {
         info!("Despawning player {:?}", player_id);
-        commands.despawn(player_map.0.remove(player_id).unwrap());
+        warn!("Skipping despawn because it's buggy!");
+        commands.despawn_recursive(player_map.0.remove(player_id).unwrap());
     }
 
     for (player_id, player_state) in new_player_states {
         let entity = player_map.0.get(player_id).unwrap();
-        if let Ok((_, mesh_handle, mut transform)) = query.get_mut(*entity) {
+        if let Ok((_, mesh_handle, mut transform, outline_mesh_handle)) = query.get_mut(*entity) {
             trace!("Updating player {:?}", player_id);
-            update_transform(&mut transform, player_state);
-            let mesh = meshes.get_mut(mesh_handle).unwrap();
-            update_mesh(mesh, player_state, draw_mode);
+            update_transform(&mut transform, player_id, player_state);
+            update_mesh(
+                &mut meshes,
+                mesh_handle,
+                &outline_mesh_handle.0,
+                player_state,
+                draw_mode,
+            );
         }
     }
 }
 
-fn update_transform(transform: &mut Transform, player_state: &PlayerDisplayState) {
+fn update_transform(
+    transform: &mut Transform,
+    player_id: &PlayerId,
+    player_state: &PlayerDisplayState,
+) {
     transform.scale = Vec3::one() * player_state.size;
     transform.translation.x = player_state.measurements.center_of_mass.x;
     transform.translation.y = player_state.measurements.center_of_mass.y;
+
+    // Ensure each player gets their own z-space for drawing, since we don't want
+    // one players outline and fill to sandwich another player's.
+    transform.translation.z = player_id.0 as f32 + 1.0;
     transform.rotation = Quat::from_rotation_z(player_state.measurements.mean_angle);
 }
 
-fn update_mesh(mesh: &mut Mesh, player_state: &PlayerDisplayState, draw_mode: DrawMode) {
+fn update_mesh(
+    meshes: &mut Assets<Mesh>,
+    mesh_handle: &Handle<Mesh>,
+    outline_mesh_handle: &Handle<Mesh>,
+    player_state: &PlayerDisplayState,
+    draw_mode: DrawMode,
+) {
     let vertex_count;
 
     match draw_mode {
         DrawMode::Poly => {
+            let mesh = meshes.get_mut(mesh_handle).unwrap();
             mesh.set_indices(Some(Indices::U32(player_state.mesh_indices.clone())));
             mesh.set_attribute(
                 Mesh::ATTRIBUTE_POSITION,
@@ -315,25 +394,46 @@ fn update_mesh(mesh: &mut Mesh, player_state: &PlayerDisplayState, draw_mode: Dr
             }
             path_builder.close();
             let path = path_builder.build();
-            let mut tesselator = FillTessellator::new();
-            let mut geometry: VertexBuffers<[f32; 3], u32> = VertexBuffers::new();
-            tesselator
+            let mut fill_tesselator = FillTessellator::new();
+            let mut fill_geometry: VertexBuffers<[f32; 3], u32> = VertexBuffers::new();
+            fill_tesselator
                 .tessellate_path(
                     &path,
                     &FillOptions::default(),
                     &mut BuffersBuilder::new(
-                        &mut geometry,
+                        &mut fill_geometry,
                         |pos: lyon::math::Point, _: FillAttributes| [pos.x, pos.y, 0.0],
                     ),
                 )
                 .unwrap();
 
-            vertex_count = geometry.vertices.len();
-            mesh.set_indices(Some(Indices::U32(geometry.indices)));
-            mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, geometry.vertices);
+            vertex_count = fill_geometry.vertices.len();
+            let mesh = meshes.get_mut(mesh_handle).unwrap();
+            mesh.set_indices(Some(Indices::U32(fill_geometry.indices)));
+            mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, fill_geometry.vertices);
+
+            let mut stroke_tesselator = StrokeTessellator::new();
+            let mut stroke_geometry: VertexBuffers<[f32; 3], u32> = VertexBuffers::new();
+            stroke_tesselator
+                .tessellate_path(
+                    &path,
+                    &StrokeOptions::default().with_line_width(0.1),
+                    &mut BuffersBuilder::new(
+                        &mut stroke_geometry,
+                        |pos: lyon::math::Point, _: StrokeAttributes| [pos.x, pos.y, 0.0],
+                    ),
+                )
+                .unwrap();
+            let outline_vertex_count = stroke_geometry.vertices.len();
+            let outline_mesh = meshes.get_mut(outline_mesh_handle).unwrap();
+            outline_mesh.set_indices(Some(Indices::U32(stroke_geometry.indices)));
+            outline_mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, stroke_geometry.vertices);
+            outline_mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0; 3]; outline_vertex_count]);
+            outline_mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0; 2]; outline_vertex_count]);
         }
     }
 
+    let mesh = meshes.get_mut(mesh_handle).unwrap();
     mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0; 3]; vertex_count]);
     mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0; 2]; vertex_count]);
 }
