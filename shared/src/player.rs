@@ -32,14 +32,14 @@ const PHYSICS_CONFIG: ControlledDangoConfig = ControlledDangoConfig {
     variable_jump_force_initial: 80.0,
     variable_jump_force_decay: 500.0,
     ground_drag: 0.1,
-    horizontal_crawling_movement_force: 7.0,
+    horizontal_crawling_movement_force: 8.5,
     horizontal_rolling_movement_force: 12.0,
     horizontal_air_movement_force: 2.0,
     angular_momentum_compensation_ratio: 0.16,
     angle_proportional_controller_coefficient: 25.0,
     stable_angle_margin: 0.3 * std::f32::consts::PI,
     crawl_side_frequency: 2.0,
-    crawl_side_amplitude: 20.0,
+    crawl_side_amplitude: 8.0,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
