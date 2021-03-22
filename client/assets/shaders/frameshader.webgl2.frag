@@ -45,11 +45,38 @@ vec4 smoothed_rand(vec2 pos, float smoothing, float page) {
     return rand(subpixel_pos, page);
 }
 
+float mountain_height(float x) {
+    float mountain_width = i_resolution.y * 0.3;
+    float rand_x_coord = x / i_resolution.x / mountain_width;
+    float rand_output = 0.0;
+    rand_output += read_texture(i_random, vec2(rand_x_coord * 1.0, 0.0)).x * 0.5;
+    rand_output += read_texture(i_random, vec2(rand_x_coord * 2.0, 1.0)).x * 0.2;
+    rand_output += read_texture(i_random, vec2(rand_x_coord * 4.0, 2.0)).x * 0.1;
+    rand_output += read_texture(i_random, vec2(rand_x_coord * 8.0, 3.0)).x * 0.05;
+    rand_output += read_texture(i_random, vec2(rand_x_coord * 16.0, 4.0)).x * 0.02;
+    rand_output *= 0.5;
+    return (rand_output + 0.5) * i_resolution.y;
+}
+
 vec3 background(vec2 pos) {
     if (pos.y < i_resolution.y * 0.5) {
         return vec3(0.3, 0.3, 0.3);
+    } else if (pos.y < mountain_height(pos.x)) {
+        return vec3(0.1, 0.28, 0.3);
     } else {
-        return mix(vec3(0.3, 0.7, 1.0), vec3(0.15, 0.35, 0.5), pos.y / i_resolution.y);
+        const vec3 sky_bottom = vec3(0.3, 0.7, 1.0);
+        const vec3 sky_top = vec3(0.15, 0.35, 0.5);
+        float sky_position = pos.y / i_resolution.y * 2.0 - 1.0;
+        vec3 sky_colour = mix(sky_bottom, sky_top, sky_position);
+
+        const vec3 sun_colour = vec3(1.0, 1.0, 0.0);
+        vec2 sun_position = vec2(0.2, 0.8) * i_resolution;
+        float sun_radius = i_resolution.y * 0.05;
+        float sun_edge_size = i_resolution.y * 0.005;
+        float sun_distance = length(pos - sun_position);
+        float sun_mask = smoothstep(sun_radius, sun_radius + sun_edge_size, sun_distance);
+
+        return mix(sun_colour, sky_colour, sun_mask);
     }
 }
 
@@ -57,6 +84,12 @@ vec3 source(vec2 pos) {
     vec2 uv = pos2uv(pos);
     vec4 texture_colour = read_texture(i_source, uv).rgba;
     return mix(background(pos), texture_colour.rgb, texture_colour.a);
+}
+
+bool is_background(vec2 pos) {
+    vec2 uv = pos2uv(pos);
+    vec4 texture_colour = read_texture(i_source, uv).rgba;
+    return texture_colour.a == 0.0;
 }
 
 float source_brightness(vec2 pos) {
@@ -99,6 +132,11 @@ vec4 sketch_outline(float page, float amplitude) {
 }
 
 vec4 sketch_hatch(float page, vec2 hatch_direction, float contrast, float thickness, float variance) {
+    // Hatch background horizontally.
+    if (is_background(gl_FragCoord.xy)) {
+        hatch_direction = hatch_direction * mat2(0.7, 0.7, -0.7, 0.7);
+    }
+
     // Stretch random texture along the given direction.
     vec2 projected_pos = hatch_direction
         * dot(gl_FragCoord.xy, hatch_direction)
