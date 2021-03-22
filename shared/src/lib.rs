@@ -1,3 +1,4 @@
+pub mod blinking_eyes;
 pub mod physics_multiplayer;
 pub mod physics_multiplayer_systems;
 pub mod player;

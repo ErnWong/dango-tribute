@@ -18,7 +18,8 @@ use bevy_fly_camera::{FlyCamera, FlyCameraPlugin};
 use bevy_webgl2;
 
 use shared::{
-    physics_multiplayer::PhysicsWorld, physics_multiplayer_systems, player_input, settings,
+    blinking_eyes, physics_multiplayer::PhysicsWorld, physics_multiplayer_systems, player_input,
+    settings,
 };
 
 #[cfg(feature = "web")]
@@ -95,6 +96,7 @@ fn main() {
         .add_system(player_input::player_input_system.system())
         .add_system(physics_multiplayer_systems::physics_multiplayer_client_sync_system.system())
         .add_system(physics_multiplayer_systems::physics_multiplayer_client_spawn_system.system())
+        .add_system(blinking_eyes::blinking_eyes_system.system())
         .add_startup_system(setup.system());
 
     #[cfg(feature = "debug-fly-camera")]

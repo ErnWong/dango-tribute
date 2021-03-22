@@ -1,4 +1,5 @@
 use crate::{
+    blinking_eyes::{BlinkingEyes, EyeState},
     physics_multiplayer::{PhysicsCommand, PhysicsDisplayState, PhysicsWorld},
     player::{PlayerDisplayState, PlayerId},
 };
@@ -112,6 +113,7 @@ pub struct PlayerBundle {
     pub transform: Transform,
     pub global_transform: GlobalTransform,
     pub player: PlayerComponent,
+    pub blinking_eyes: BlinkingEyes,
 }
 
 pub struct PlayerComponent;
@@ -208,8 +210,12 @@ fn sync_from_state(
         update_transform(&mut transform, player_id, player_state);
         let mesh = Mesh::new(PrimitiveTopology::TriangleList);
         let outline_mesh = Mesh::new(PrimitiveTopology::TriangleList);
+        let left_eye_mesh = Mesh::new(PrimitiveTopology::TriangleList);
+        let right_eye_mesh = Mesh::new(PrimitiveTopology::TriangleList);
         let mesh_handle = meshes.add(mesh);
         let outline_mesh_handle = OutlineMesh(meshes.add(outline_mesh));
+        let left_eye_mesh_handle = meshes.add(left_eye_mesh);
+        let right_eye_mesh_handle = meshes.add(right_eye_mesh);
         update_mesh(
             &mut meshes,
             &mesh_handle,
@@ -238,32 +244,36 @@ fn sync_from_state(
                 transform,
                 global_transform: GlobalTransform::default(),
                 player: PlayerComponent,
+                blinking_eyes: BlinkingEyes::new(
+                    vec![left_eye_mesh_handle.clone(), right_eye_mesh_handle.clone()],
+                    &mut meshes,
+                ),
             })
             .current_entity()
             .unwrap();
         commands.set_current_entity(entity);
         commands.with_children(|parent| {
             parent
-                .spawn(primitive(
-                    materials.add(Color::BLACK.into()),
-                    &mut meshes,
-                    ShapeType::Rectangle {
-                        width: 0.07,
-                        height: 0.4,
+                .spawn(SpriteBundle {
+                    sprite: Sprite {
+                        size: Vec2::one(),
+                        ..Default::default()
                     },
-                    TessellationMode::Fill(&FillOptions::default()),
-                    Vec3::new(-0.1, 0.3, 1.0),
-                ))
-                .spawn(primitive(
-                    materials.add(Color::BLACK.into()),
-                    &mut meshes,
-                    ShapeType::Rectangle {
-                        width: 0.07,
-                        height: 0.4,
+                    mesh: left_eye_mesh_handle,
+                    material: materials.add(Color::rgb(0.2, 0.2, 0.2).into()),
+                    transform: Transform::from_translation(Vec3::new(-0.2, 0.3, 0.1)),
+                    ..Default::default()
+                })
+                .spawn(SpriteBundle {
+                    sprite: Sprite {
+                        size: Vec2::one(),
+                        ..Default::default()
                     },
-                    TessellationMode::Fill(&FillOptions::default()),
-                    Vec3::new(0.1, 0.3, 1.0),
-                ))
+                    mesh: right_eye_mesh_handle,
+                    material: materials.add(Color::rgb(0.2, 0.2, 0.2).into()),
+                    transform: Transform::from_translation(Vec3::new(0.2, 0.3, 0.1)),
+                    ..Default::default()
+                })
                 .spawn(SpriteBundle {
                     sprite: Sprite {
                         size: Vec2::one(),
