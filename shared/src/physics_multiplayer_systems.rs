@@ -60,7 +60,7 @@ pub fn physics_multiplayer_client_spawn_system(
                         // TODO: Dynamically chosen...
                         size: 0.6,
                         x: 0.0,
-                        y: 0.0,
+                        y: 5.0,
                         color: match *client_id % 4 {
                             0 => Color::rgb(1.0, 0.3, 0.3),
                             1 => Color::rgb(0.3, 0.8, 0.4),
@@ -259,9 +259,9 @@ fn sync_from_state(
                         size: Vec2::one(),
                         ..Default::default()
                     },
-                    mesh: left_eye_mesh_handle,
+                    mesh: left_eye_mesh_handle.clone(),
                     material: materials.add(Color::rgb(0.2, 0.2, 0.2).into()),
-                    transform: Transform::from_translation(Vec3::new(-0.2, 0.3, 0.1)),
+                    transform: Transform::from_translation(Vec3::new(-0.2, 0.3, 0.5)),
                     ..Default::default()
                 })
                 .spawn(SpriteBundle {
@@ -269,9 +269,9 @@ fn sync_from_state(
                         size: Vec2::one(),
                         ..Default::default()
                     },
-                    mesh: right_eye_mesh_handle,
+                    mesh: right_eye_mesh_handle.clone(),
                     material: materials.add(Color::rgb(0.2, 0.2, 0.2).into()),
-                    transform: Transform::from_translation(Vec3::new(0.2, 0.3, 0.1)),
+                    transform: Transform::from_translation(Vec3::new(0.2, 0.3, 0.5)),
                     ..Default::default()
                 })
                 .spawn(SpriteBundle {
@@ -297,7 +297,7 @@ fn sync_from_state(
                     render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
                         SPRITE_PIPELINE_HANDLE.typed(),
                     )]),
-                    transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)),
+                    transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.5)),
                     global_transform: GlobalTransform::default(),
                 });
         });
@@ -335,13 +335,13 @@ fn update_transform(
     player_id: &PlayerId,
     player_state: &PlayerDisplayState,
 ) {
-    transform.scale = Vec3::one() * player_state.size;
+    transform.scale = Vec3::new(player_state.size, player_state.size, 1.0 / 1000.0);
     transform.translation.x = player_state.measurements.center_of_mass.x;
     transform.translation.y = player_state.measurements.center_of_mass.y;
 
     // Ensure each player gets their own z-space for drawing, since we don't want
     // one players outline and fill to sandwich another player's.
-    transform.translation.z = player_id.0 as f32 + 1.0;
+    transform.translation.z = -(player_id.0 as f32) / 1000.0;
     transform.rotation = Quat::from_rotation_z(player_state.measurements.mean_angle);
 }
 

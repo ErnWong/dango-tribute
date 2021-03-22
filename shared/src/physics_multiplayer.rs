@@ -80,7 +80,7 @@ impl Default for PhysicsWorld {
         let ground = physics_world.bodies.insert(Ground::new());
         physics_world.colliders.insert(
             ColliderDesc::<RealField>::new(ShapeHandle::new(Cuboid::new(Vector2::new(500.0, 5.0))))
-                .translation(Vector2::new(500.0 - 30.0, 5.0 - 15.0))
+                .translation(Vector2::new(0.0, -5.0))
                 .build(BodyPartHandle(ground, 0)),
         );
 

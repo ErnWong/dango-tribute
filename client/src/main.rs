@@ -5,8 +5,6 @@ use bevy::{
 };
 use bevy_web_fullscreen::FullViewportPlugin;
 
-use bevy_prototype_lyon::prelude::*;
-
 use bevy_prototype_frameshader::FrameshaderPlugin;
 use bevy_prototype_networked_physics::NetworkedPhysicsClientPlugin;
 use bevy_prototype_transform_tracker::{TransformTrackingFollower, TransformTrackingPlugin};
@@ -18,8 +16,10 @@ use bevy_fly_camera::{FlyCamera, FlyCameraPlugin};
 use bevy_webgl2;
 
 use shared::{
-    blinking_eyes, physics_multiplayer::PhysicsWorld, physics_multiplayer_systems, player_input,
-    settings,
+    blinking_eyes,
+    camera_2point5d::{Camera2point5dBundle, Camera2point5dPlugin},
+    physics_multiplayer::PhysicsWorld,
+    physics_multiplayer_systems, player_input, settings,
 };
 
 #[cfg(feature = "web")]
@@ -42,7 +42,7 @@ fn main() {
     // TODO: Fix this by loading all assets from the main setup startup system.
     app.add_startup_system(setup_hot_reloading.system());
 
-    app.add_resource(ClearColor(Color::DARK_GRAY))
+    app.add_resource(ClearColor(Color::rgba(0.0, 0.0, 0.0, 0.0)))
         .add_resource(bevy::log::LogSettings {
             level: bevy::log::Level::INFO,
             ..Default::default()
@@ -93,6 +93,7 @@ fn main() {
             FRAGMENT_SHADER_PATH.into(),
         ))
         .add_plugin(TransformTrackingPlugin)
+        .add_plugin(Camera2point5dPlugin)
         .add_system(player_input::player_input_system.system())
         .add_system(physics_multiplayer_systems::physics_multiplayer_client_sync_system.system())
         .add_system(physics_multiplayer_systems::physics_multiplayer_client_spawn_system.system())
@@ -115,35 +116,32 @@ fn setup(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     commands
-        .spawn(Camera2dBundle {
-            transform: Transform {
-                scale: Vec3::one() / 60.0,
-                translation: Vec3::unit_z() * (1000.0 / 60.0 - 0.1),
-                rotation: Default::default(),
-            },
+        .spawn(Camera2point5dBundle {
+            transform: Transform::from_translation(Vec3::unit_z() * 8.0)
+                .looking_at(-Vec3::unit_z(), Vec3::unit_y()),
             ..Default::default()
         })
-        .with(TransformTrackingFollower)
-        .spawn(primitive(
-            materials.add(Color::rgb(0.3, 0.7, 1.0).into()),
-            &mut meshes,
-            ShapeType::Rectangle {
-                width: 1000.0,
-                height: 1000.0,
-            },
-            TessellationMode::Fill(&FillOptions::default()),
-            Vec3::new(-500.0, 0.0 - 5.0, 0.0),
-        ))
-        .spawn(primitive(
-            materials.add(Color::rgb(1.0, 0.4, 0.5).into()),
-            &mut meshes,
-            ShapeType::Rectangle {
-                width: 1000.0,
-                height: 1000.0,
-            },
-            TessellationMode::Fill(&FillOptions::default()),
-            Vec3::new(-500.0, -1000.0 - 5.0, 0.0),
-        ));
+        .with(TransformTrackingFollower);
+    // .spawn(primitive(
+    //     materials.add(Color::rgb(0.3, 0.7, 1.0).into()),
+    //     &mut meshes,
+    //     ShapeType::Rectangle {
+    //         width: 1000.0,
+    //         height: 1000.0,
+    //     },
+    //     TessellationMode::Fill(&FillOptions::default()),
+    //     Vec3::new(-500.0, 0.0 - 5.0, 0.0),
+    // ))
+    // .spawn(primitive(
+    //     materials.add(Color::rgb(1.0, 0.4, 0.5).into()),
+    //     &mut meshes,
+    //     ShapeType::Rectangle {
+    //         width: 1000.0,
+    //         height: 1000.0,
+    //     },
+    //     TessellationMode::Fill(&FillOptions::default()),
+    //     Vec3::new(-500.0, -1000.0 - 5.0, 0.0),
+    // ));
 
     #[cfg(feature = "debug-fly-camera")]
     commands.with(FlyCamera::default());

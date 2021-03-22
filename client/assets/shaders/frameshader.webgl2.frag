@@ -45,9 +45,18 @@ vec4 smoothed_rand(vec2 pos, float smoothing, float page) {
     return rand(subpixel_pos, page);
 }
 
+vec3 background(vec2 pos) {
+    if (pos.y < i_resolution.y * 0.5) {
+        return vec3(0.3, 0.3, 0.3);
+    } else {
+        return mix(vec3(0.3, 0.7, 1.0), vec3(0.15, 0.35, 0.5), pos.y / i_resolution.y);
+    }
+}
+
 vec3 source(vec2 pos) {
     vec2 uv = pos2uv(pos);
-    return read_texture(i_source, uv).rgb;
+    vec4 texture_colour = read_texture(i_source, uv).rgba;
+    return mix(background(pos), texture_colour.rgb, texture_colour.a);
 }
 
 float source_brightness(vec2 pos) {
@@ -165,7 +174,6 @@ void main() {
     draw(alpha(0.3) * sketch_hatch(1.0, polar(-32.0, 10.0 * 10.0), 0.0, 0.3, 0.5));
     draw(alpha(0.2) * sketch_hatch(2.0, polar(-40.0, 10.0 * 10.0), 0.0, 0.3, 0.5));
     draw(alpha(0.3) * sketch_hatch(3.0, polar(-50.0, 10.0 * 10.0), 0.0, 0.3, 0.5));
-    draw(sketch_outline(0.0, 3.0));
     draw(alpha(0.5) * paper_dents());
     o_color.rgb *= mix(vignette_mask(), 1.0, 0.5);
     o_color.rgb = sqrt(o_color.rgb);
