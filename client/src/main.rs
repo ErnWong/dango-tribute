@@ -5,6 +5,8 @@ use bevy::{
 };
 use bevy_web_fullscreen::FullViewportPlugin;
 
+use bevy_prototype_lyon::prelude::*;
+
 use bevy_prototype_frameshader::FrameshaderPlugin;
 use bevy_prototype_networked_physics::NetworkedPhysicsClientPlugin;
 use bevy_prototype_transform_tracker::{TransformTrackingFollower, TransformTrackingPlugin};
@@ -105,7 +107,11 @@ fn setup_hot_reloading(asset_server: ResMut<AssetServer>) {
     asset_server.watch_for_changes().unwrap();
 }
 
-fn setup(commands: &mut Commands) {
+fn setup(
+    commands: &mut Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
     commands
         .spawn(Camera2dBundle {
             transform: Transform {
@@ -115,7 +121,27 @@ fn setup(commands: &mut Commands) {
             },
             ..Default::default()
         })
-        .with(TransformTrackingFollower);
+        .with(TransformTrackingFollower)
+        .spawn(primitive(
+            materials.add(Color::rgb(0.3, 0.7, 1.0).into()),
+            &mut meshes,
+            ShapeType::Rectangle {
+                width: 1000.0,
+                height: 1000.0,
+            },
+            TessellationMode::Fill(&FillOptions::default()),
+            Vec3::new(-500.0, 0.0 - 5.0, 0.0),
+        ))
+        .spawn(primitive(
+            materials.add(Color::rgb(1.0, 0.4, 0.5).into()),
+            &mut meshes,
+            ShapeType::Rectangle {
+                width: 1000.0,
+                height: 1000.0,
+            },
+            TessellationMode::Fill(&FillOptions::default()),
+            Vec3::new(-500.0, -1000.0 - 5.0, 0.0),
+        ));
 
     #[cfg(feature = "debug-fly-camera")]
     commands.with(FlyCamera::default());

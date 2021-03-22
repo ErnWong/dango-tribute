@@ -46,9 +46,9 @@ impl Plugin for DangoPlugin {
 
 pub mod colors {
     use bevy::prelude::*;
-    pub const DANGO_YELLOW: Color = Color::rgb_linear(0.8672, 0.8438, 0.7266);
-    pub const DANGO_GREEN: Color = Color::rgb_linear(0.7813, 0.8673, 0.7656);
-    pub const DANGO_RED: Color = Color::rgb_linear(0.9023, 0.8400, 0.8400);
+    pub const DANGO_YELLOW: Color = Color::rgb(0.8672, 0.8438, 0.7266);
+    pub const DANGO_GREEN: Color = Color::rgb(0.7813, 0.8673, 0.7656);
+    pub const DANGO_RED: Color = Color::rgb(0.9023, 0.8400, 0.8400);
 }
 
 #[derive(Bundle)]
