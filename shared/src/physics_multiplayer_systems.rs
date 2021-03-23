@@ -121,6 +121,8 @@ pub struct PlayerComponent;
 #[derive(Default)]
 pub struct PlayerMap(HashMap<PlayerId, Entity>);
 
+pub struct Shadow(Entity);
+
 #[derive(Copy, Clone)]
 enum DrawMode {
     Poly,
@@ -133,12 +135,8 @@ pub fn physics_multiplayer_client_sync_system(
     client: Res<Client<PhysicsWorld>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     meshes: ResMut<Assets<Mesh>>,
-    query: Query<(
-        &PlayerComponent,
-        &Handle<Mesh>,
-        &mut Transform,
-        &OutlineMesh,
-    )>,
+    query: Query<(&PlayerComponent, &Handle<Mesh>, &OutlineMesh, &Shadow)>,
+    transform_query: Query<&mut Transform>,
 ) {
     if let ClientState::Ready(ready_client) = client.state() {
         sync_from_state(
@@ -149,6 +147,7 @@ pub fn physics_multiplayer_client_sync_system(
             &mut materials,
             meshes,
             query,
+            transform_query,
             DrawMode::Spline,
         );
     }
@@ -161,12 +160,8 @@ pub fn physics_multiplayer_server_diagnostic_sync_system(
     server: Res<Server<PhysicsWorld>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     meshes: ResMut<Assets<Mesh>>,
-    query: Query<(
-        &PlayerComponent,
-        &Handle<Mesh>,
-        &mut Transform,
-        &OutlineMesh,
-    )>,
+    query: Query<(&PlayerComponent, &Handle<Mesh>, &OutlineMesh, &Shadow)>,
+    transform_query: Query<&mut Transform>,
 ) {
     sync_from_state(
         &server.display_state(),
@@ -176,6 +171,7 @@ pub fn physics_multiplayer_server_diagnostic_sync_system(
         &mut materials,
         meshes,
         query,
+        transform_query,
         DrawMode::Poly,
     );
 }
@@ -187,12 +183,8 @@ fn sync_from_state(
     commands: &mut Commands,
     materials: &mut Assets<ColorMaterial>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut query: Query<(
-        &PlayerComponent,
-        &Handle<Mesh>,
-        &mut Transform,
-        &OutlineMesh,
-    )>,
+    mut query: Query<(&PlayerComponent, &Handle<Mesh>, &OutlineMesh, &Shadow)>,
+    transform_query: Query<&mut Transform>,
     draw_mode: DrawMode,
 ) {
     let new_player_states = world_state.players();
@@ -207,15 +199,50 @@ fn sync_from_state(
         info!("Spawning player {:?}", player_id);
         let player_state = new_player_states.get(player_id).unwrap();
         let mut transform = Transform::default();
-        update_transform(&mut transform, player_id, player_state);
+        let mut shadow_transform = Transform::from_translation(Vec3::unit_z());
+        update_transform(
+            &mut transform,
+            &mut shadow_transform,
+            player_id,
+            player_state,
+        );
+
         let mesh = Mesh::new(PrimitiveTopology::TriangleList);
         let outline_mesh = Mesh::new(PrimitiveTopology::TriangleList);
         let left_eye_mesh = Mesh::new(PrimitiveTopology::TriangleList);
         let right_eye_mesh = Mesh::new(PrimitiveTopology::TriangleList);
+
+        // TODO: Move this section out.
+        let mut shadow_mesh = Mesh::new(PrimitiveTopology::TriangleList);
+        shadow_mesh.set_indices(Some(Indices::U32(
+            [
+                0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 6, 0, 6, 7, 0, 7, 8, 0, 8, 1,
+            ]
+            .into(),
+        )));
+        let shadow_vertices: Vec<[f32; 3]> = [
+            // Center
+            [0.0, 0.0, 0.0],
+            // 8 corners of an octagon starting from x axis
+            [-1.0 * 0.924, 0.0, 0.383],
+            [-1.0 * 0.383, 0.0, 0.924],
+            [-1.0 * -0.383, 0.0, 0.924],
+            [-1.0 * -0.924, 0.0, 0.383],
+            [-1.0 * -0.924, 0.0, -0.383],
+            [-1.0 * -0.383, 0.0, -0.924],
+            [-1.0 * 0.383, 0.0, -0.924],
+            [-1.0 * 0.924, 0.0, -0.383],
+        ]
+        .into();
+        shadow_mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, shadow_vertices);
+        shadow_mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0; 3]; 9]);
+        shadow_mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0; 3]; 9]);
+
         let mesh_handle = meshes.add(mesh);
         let outline_mesh_handle = OutlineMesh(meshes.add(outline_mesh));
         let left_eye_mesh_handle = meshes.add(left_eye_mesh);
         let right_eye_mesh_handle = meshes.add(right_eye_mesh);
+        let shadow_mesh_handle = meshes.add(shadow_mesh);
         update_mesh(
             &mut meshes,
             &mesh_handle,
@@ -251,56 +278,86 @@ fn sync_from_state(
             })
             .current_entity()
             .unwrap();
-        commands.set_current_entity(entity);
-        commands.with_children(|parent| {
-            parent
-                .spawn(SpriteBundle {
-                    sprite: Sprite {
-                        size: Vec2::one(),
-                        ..Default::default()
-                    },
-                    mesh: left_eye_mesh_handle.clone(),
-                    material: materials.add(Color::rgb(0.2, 0.2, 0.2).into()),
-                    transform: Transform::from_translation(Vec3::new(-0.2, 0.3, 0.5)),
+        commands
+            .spawn(SpriteBundle {
+                sprite: Sprite {
+                    size: Vec2::one(),
                     ..Default::default()
-                })
-                .spawn(SpriteBundle {
-                    sprite: Sprite {
-                        size: Vec2::one(),
-                        ..Default::default()
-                    },
-                    mesh: right_eye_mesh_handle.clone(),
-                    material: materials.add(Color::rgb(0.2, 0.2, 0.2).into()),
-                    transform: Transform::from_translation(Vec3::new(0.2, 0.3, 0.5)),
+                },
+                mesh: left_eye_mesh_handle.clone(),
+                material: materials.add(Color::rgb(0.2, 0.2, 0.2).into()),
+                transform: Transform::from_translation(Vec3::new(-0.2, 0.3, 0.5)),
+                ..Default::default()
+            })
+            .with(Parent(entity))
+            .spawn(SpriteBundle {
+                sprite: Sprite {
+                    size: Vec2::one(),
                     ..Default::default()
-                })
-                .spawn(SpriteBundle {
-                    sprite: Sprite {
-                        size: Vec2::one(),
-                        ..Default::default()
-                    },
-                    mesh: outline_mesh_handle.0,
-                    material: materials.add(
-                        Color::rgb(
-                            player_state.color.r() * 0.5,
-                            player_state.color.g() * 0.5,
-                            player_state.color.b() * 0.5,
-                        )
-                        .into(),
-                    ),
-                    main_pass: MainPass,
-                    draw: Default::default(),
-                    visible: Visible {
-                        is_transparent: true,
-                        ..Default::default()
-                    },
-                    render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
-                        SPRITE_PIPELINE_HANDLE.typed(),
-                    )]),
-                    transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.5)),
-                    global_transform: GlobalTransform::default(),
-                });
-        });
+                },
+                mesh: right_eye_mesh_handle.clone(),
+                material: materials.add(Color::rgb(0.2, 0.2, 0.2).into()),
+                transform: Transform::from_translation(Vec3::new(0.2, 0.3, 0.5)),
+                ..Default::default()
+            })
+            .with(Parent(entity))
+            .spawn(SpriteBundle {
+                sprite: Sprite {
+                    size: Vec2::one(),
+                    ..Default::default()
+                },
+                mesh: outline_mesh_handle.0,
+                material: materials.add(
+                    Color::rgb(
+                        player_state.color.r() * 0.5,
+                        player_state.color.g() * 0.5,
+                        player_state.color.b() * 0.5,
+                    )
+                    .into(),
+                ),
+                main_pass: MainPass,
+                draw: Default::default(),
+                visible: Visible {
+                    is_transparent: true,
+                    ..Default::default()
+                },
+                render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
+                    SPRITE_PIPELINE_HANDLE.typed(),
+                )]),
+                transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.5)),
+                global_transform: GlobalTransform::default(),
+            })
+            .with(Parent(entity));
+        let shadow_entity = commands
+            .spawn(SpriteBundle {
+                sprite: Sprite {
+                    size: Vec2::one(),
+                    ..Default::default()
+                },
+                mesh: shadow_mesh_handle.clone(),
+                material: materials.add(
+                    Color::rgb(
+                        player_state.color.r() * 0.1,
+                        player_state.color.g() * 0.1,
+                        player_state.color.b() * 0.1,
+                    )
+                    .into(),
+                ),
+                main_pass: MainPass,
+                draw: Default::default(),
+                visible: Visible {
+                    is_transparent: true,
+                    ..Default::default()
+                },
+                render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
+                    SPRITE_PIPELINE_HANDLE.typed(),
+                )]),
+                transform: shadow_transform,
+                global_transform: GlobalTransform::default(),
+            })
+            .current_entity()
+            .unwrap();
+        commands.insert_one(entity, Shadow(shadow_entity));
 
         if *player_id == player_to_track {
             commands.insert_one(entity, TransformTrackingTarget);
@@ -316,28 +373,45 @@ fn sync_from_state(
 
     for (player_id, player_state) in new_player_states {
         let entity = player_map.0.get(player_id).unwrap();
-        if let Ok((_, mesh_handle, mut transform, outline_mesh_handle)) = query.get_mut(*entity) {
-            trace!("Updating player {:?}", player_id);
-            update_transform(&mut transform, player_id, player_state);
-            update_mesh(
-                &mut meshes,
-                mesh_handle,
-                &outline_mesh_handle.0,
-                player_state,
-                draw_mode,
-            );
+        // SAFE: Shadow and it's shadow caster are different entities, so no aliasing occurs.
+        if let Ok((_, mesh_handle, outline_mesh_handle, shadow)) = query.get_mut(*entity) {
+            unsafe {
+                if let Ok(mut transform) = transform_query.get_unsafe(*entity) {
+                    if let Ok(mut shadow_transform) = transform_query.get_unsafe(shadow.0) {
+                        trace!("Updating player {:?}", player_id);
+                        update_transform(
+                            &mut transform,
+                            &mut shadow_transform,
+                            player_id,
+                            player_state,
+                        );
+                        update_mesh(
+                            &mut meshes,
+                            mesh_handle,
+                            &outline_mesh_handle.0,
+                            player_state,
+                            draw_mode,
+                        );
+                    }
+                }
+            }
         }
     }
 }
 
 fn update_transform(
     transform: &mut Transform,
+    shadow_transform: &mut Transform,
     player_id: &PlayerId,
     player_state: &PlayerDisplayState,
 ) {
     transform.scale = Vec3::new(player_state.size, player_state.size, 1.0 / 1000.0);
     transform.translation.x = player_state.measurements.center_of_mass.x;
     transform.translation.y = player_state.measurements.center_of_mass.y;
+
+    shadow_transform.scale = Vec3::one() * player_state.size;
+    shadow_transform.translation.x = transform.translation.x;
+    shadow_transform.translation.z = transform.translation.z;
 
     // Ensure each player gets their own z-space for drawing, since we don't want
     // one players outline and fill to sandwich another player's.
