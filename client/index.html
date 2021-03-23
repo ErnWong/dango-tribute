@@ -22,15 +22,20 @@
       canvas:not(:focus) {
         opacity: 0.5;
       }
+      body::before {
+        content: '';
+        opacity: 0.0;
+        transition: opacity 0.3s;
+      }
       body:not(:focus-within)::before {
         content: 'Click to resume';
         position: absolute;
+        opacity: 1.0;
         text-transform: uppercase;
         font-style: italic;
-        width: 10em;
-        left: 50%;
+        width: 100%;
+        left: 0;
         top: 50%;
-        margin-left: -5em;
         margin-top: -0.5em;
         font-size: 24px;
         color: white;
