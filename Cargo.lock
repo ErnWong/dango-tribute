@@ -648,11 +648,14 @@ dependencies = [
 
 [[package]]
 name = "bevy_networking_turbulence"
-version = "0.1.0"
-source = "git+https://github.com/smokku/bevy_networking_turbulence?rev=1bfe6f44397e510009a8a80abad1e105d875bf94#1bfe6f44397e510009a8a80abad1e105d875bf94"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53df3a4ac9ff0d757916cc26d61b1d6a6e277c06e9a36252cbd9267fffaf5a37"
 dependencies = [
- "bevy",
- "bytes 0.6.0",
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_tasks",
+ "bytes 1.0.1",
  "cfg-if 1.0.0",
  "crossbeam-channel 0.5.0",
  "futures",
@@ -662,7 +665,6 @@ dependencies = [
  "log",
  "naia-client-socket",
  "naia-server-socket",
- "serde",
  "turbulence",
 ]
 
@@ -1095,9 +1097,9 @@ checksum = "0e4cec68f03f32e44924783795810fa50a7035d8c8ebe78580ad7e6c703fba38"
 
 [[package]]
 name = "bytes"
-version = "0.6.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0dcbc35f504eb6fc275a6d20e4ebcda18cf50d40ba6fabff8c711fa16cb3b16"
+checksum = "b700ce4376041dcd0a327fd0097c41095743c4c8af8887265942faf1100bd040"
 
 [[package]]
 name = "cache-padded"
