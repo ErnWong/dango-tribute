@@ -1,0 +1,37 @@
+[package]
+name = "naia-server-socket"
+version = "0.4.2"
+authors = ["connorcarpenter <connorcarpenter@gmail.com>"]
+description = "An abstraction to provide a common API over either a UDP socket or a service that can establish WebRTC connections"
+documentation = "https://docs.rs/naia-server-socket"
+homepage = "https://github.com/naia-rs/naia-socket"
+repository = "https://github.com/naia-rs/naia-socket"
+readme = "../README.md"
+keywords = ["webrtc", "udp", "server", "gamedev", "networking"]
+license = "MIT OR Apache-2.0"
+categories = ["network-programming", "game-development", "wasm", "web-programming"]
+edition = "2018"
+
+[badges]
+maintenance = { status = "actively-developed" }
+
+[package.metadata.docs.rs]
+features = [ "use-webrtc" ]
+
+[features]
+use-udp = [ ]
+use-webrtc = [ "webrtc-unreliable", "smol", "async-dup", "http", "futures-core" ]
+
+[dependencies]
+naia-socket-shared = { version = "0.4.1", path = "../shared" }
+log = "0.4"
+cfg-if = "0.1.10"
+async-io = { version = "1.1" }
+async-trait = "0.1.36"
+futures-channel = { version = "0.3", features = ["sink"] }
+futures-core = { version = "0.3", optional = true }
+futures-util = { version = "0.3", features = ["sink"] }
+webrtc-unreliable = { version = "0.5.0", optional = true }
+smol = { version = "1.2.4", optional = true }
+async-dup = { version = "1.2.2", optional = true }
+http = { version = "0.2", optional = true }

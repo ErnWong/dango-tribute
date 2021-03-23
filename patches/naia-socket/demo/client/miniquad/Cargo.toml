@@ -1,0 +1,19 @@
+[package]
+name = "naia-client-socket-miniquad-example"
+authors = ["connorcarpenter <connorcarpenter@gmail.com>"]
+version = "0.1.0"
+edition = "2018"
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "naia-client-socket-miniquad-example"
+path = "src/main.rs"
+
+[features]
+multithread = [ "naia-client-socket/multithread" ]
+mquad = [ "naia-client-socket/mquad" ]
+
+[dependencies]
+cfg-if = "0.1.10"
+naia-client-socket = { path = "../../../client" }
+miniquad = { version = "=0.3.0-alpha.22", features = ["log-impl"] }

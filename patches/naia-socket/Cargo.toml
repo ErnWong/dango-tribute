@@ -1,0 +1,10 @@
+[workspace]
+members = [
+    "client",
+    "server",
+    "shared",
+    "demo/server",
+    "demo/client/wasm_bindgen",
+    "demo/client/miniquad",
+    "demo/client/miniquad/dev_http_server"
+    ]

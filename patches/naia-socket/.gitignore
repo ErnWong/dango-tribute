@@ -1,0 +1,15 @@
+/target
+**/*.rs.bk
+.idea/*
+/Cargo.lock
+node_modules
+demo/client/miniquad/target
+demo/client/miniquad/target/
+demo/client/miniquad/target/*
+demo/client/miniquad/dev_http_server/Cargo.lock
+demo/client/miniquad/dev_http_server/dist
+demo/client/miniquad/dev_http_server/dist/
+demo/client/miniquad/dev_http_server/dist/*
+demo/client/miniquad/dev_http_server/target
+demo/client/miniquad/dev_http_server/target/
+demo/client/miniquad/dev_http_server/target/*
