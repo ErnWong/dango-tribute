@@ -285,7 +285,7 @@ fn sync_from_state(
                     ..Default::default()
                 },
                 mesh: left_eye_mesh_handle.clone(),
-                material: materials.add(Color::rgb(0.2, 0.2, 0.2).into()),
+                material: materials.add(Color::rgb(0.1, 0.1, 0.1).into()),
                 transform: Transform::from_translation(Vec3::new(-0.2, 0.3, 0.5)),
                 ..Default::default()
             })
@@ -296,7 +296,7 @@ fn sync_from_state(
                     ..Default::default()
                 },
                 mesh: right_eye_mesh_handle.clone(),
-                material: materials.add(Color::rgb(0.2, 0.2, 0.2).into()),
+                material: materials.add(Color::rgb(0.1, 0.1, 0.1).into()),
                 transform: Transform::from_translation(Vec3::new(0.2, 0.3, 0.5)),
                 ..Default::default()
             })
