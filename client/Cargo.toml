@@ -1,0 +1,37 @@
+[package]
+name = "naia-client-socket"
+version = "0.5.2"
+authors = ["connorcarpenter <connorcarpenter@gmail.com>"]
+description = "Abstraction to expose common API over a UDP socket on Linux, and a unreliable WebRTC datachannel on the browser"
+documentation = "https://docs.rs/naia-client-socket"
+homepage = "https://github.com/naia-rs/naia-socket"
+repository = "https://github.com/naia-rs/naia-socket"
+readme = "../README.md"
+keywords = ["wasm", "webrtc", "udp", "networking", "gamedev"]
+license = "MIT OR Apache-2.0"
+categories = ["network-programming", "game-development", "wasm", "web-programming"]
+edition = "2018"
+
+[badges]
+maintenance = { status = "actively-developed" }
+
+[features]
+multithread = [ "naia-socket-shared/multithread" ]
+wbindgen = [ "naia-socket-shared/wbindgen", "url", "wasm-bindgen", "js-sys", "web_sys", "serde", "serde_derive" ]
+mquad = [ "naia-socket-shared/mquad", "miniquad" ]
+
+[dependencies]
+log = { version = "0.4" }
+naia-socket-shared = { version = "0.4.1", path = "../shared" }
+cfg-if = "0.1.10"
+url = { version = "2.1.1", optional = true }
+wasm-bindgen = { version = "0.2.45", features = [ "serde-serialize" ], optional = true  }
+js-sys = { version = "0.3", optional = true  }
+web_sys = { version = "0.3.22", package = "web-sys", features = [
+    "RtcConfiguration", "RtcDataChannel", "RtcDataChannelInit", "RtcDataChannelType",
+    "RtcIceCandidate", "RtcIceCandidateInit",
+    "RtcPeerConnection", "RtcSdpType",  "RtcSessionDescription", "RtcSessionDescriptionInit",
+    "XmlHttpRequest", "XmlHttpRequestEventTarget", "MessageEvent", "ProgressEvent", "ErrorEvent", "Blob" ], optional = true  }
+serde = { version = "^1.0.59", optional = true  }
+serde_derive = { version = "^1.0.59", optional = true  }
+miniquad = { version = "=0.3.0-alpha.22", features = ["log-impl"], optional = true }
