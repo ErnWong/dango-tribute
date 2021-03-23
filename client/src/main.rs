@@ -22,6 +22,10 @@ use shared::{
     physics_multiplayer_systems, player_input, settings,
 };
 
+pub mod sakura;
+
+use sakura::SakuraPlugin;
+
 #[cfg(feature = "web")]
 const VERTEX_SHADER_PATH: &str = "shaders/frameshader.webgl2.vert";
 
@@ -94,6 +98,7 @@ fn main() {
         ))
         .add_plugin(TransformTrackingPlugin)
         .add_plugin(Camera2point5dPlugin)
+        .add_plugin(SakuraPlugin)
         .add_system(player_input::player_input_system.system())
         .add_system(physics_multiplayer_systems::physics_multiplayer_client_sync_system.system())
         .add_system(physics_multiplayer_systems::physics_multiplayer_client_spawn_system.system())

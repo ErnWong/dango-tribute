@@ -60,9 +60,9 @@ float mountain_height(float x) {
 
 vec3 background(vec2 pos) {
     if (pos.y < i_resolution.y * 0.5) {
-        return vec3(0.3, 0.3, 0.3);
+        return vec3(0.20, 0.3, 0.15);
     } else if (pos.y < mountain_height(pos.x)) {
-        return vec3(0.1, 0.28, 0.3);
+        return vec3(0.1, 0.2, 0.3);
     } else {
         const vec3 sky_bottom = vec3(0.3, 0.7, 1.0);
         const vec3 sky_top = vec3(0.15, 0.35, 0.5);

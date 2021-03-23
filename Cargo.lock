@@ -1194,6 +1194,7 @@ dependencies = [
  "bevy_prototype_transform_tracker",
  "bevy_web_fullscreen",
  "bevy_webgl2",
+ "rand 0.8.3",
  "shared",
  "winit",
 ]
