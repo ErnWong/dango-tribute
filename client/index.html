@@ -13,14 +13,39 @@
       canvas {
         touch-action: none;
         margin: auto;
+        transition: opacity 0.3s;
       }
       canvas:focus {
         outline: none;
+        opacity: 1.0;
+      }
+      canvas:not(:focus) {
+        opacity: 0.5;
+      }
+      body:not(:focus-within)::before {
+        content: 'Click to resume';
+        position: absolute;
+        text-transform: uppercase;
+        font-style: italic;
+        width: 10em;
+        left: 50%;
+        top: 50%;
+        margin-left: -5em;
+        margin-top: -0.5em;
+        font-size: 24px;
+        color: white;
+        z-index: 100;
+        text-shadow: 2px 2px 4px black;
+        text-align: center;
       }
     </style>
   </head>
+  <body></body>
   <script type="module">
-    import init from './target/wasm.js'
-    init()
+    import init from './target/wasm.js';
+    init();
+    document.body.addEventListener('click', () => {
+      document.getElementsByTagName('canvas')[0].focus();
+    });
   </script>
 </html>
