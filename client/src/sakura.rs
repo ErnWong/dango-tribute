@@ -20,10 +20,10 @@ pub fn spawn_sakura(
     const WIDTH: f32 = 40.0;
     const THICKNESS: f32 = 2.5;
     const HEIGHT: f32 = 1.0;
-    const LEAF_DENSITY: f32 = 100.0;
+    const LEAF_DENSITY: f32 = 60.0;
     const DISTANCE: f32 = 5.0;
     const LEAF_SIZE_MIN: f32 = 0.1;
-    const LEAF_SIZE_MAX: f32 = 0.2;
+    const LEAF_SIZE_MAX: f32 = 0.25;
     const LEAF_BATCHES: usize = 20;
     const TRUNK_DENSITY: f32 = 0.5;
     const TRUNK_THICKNESS: f32 = 0.2;
