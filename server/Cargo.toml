@@ -6,7 +6,7 @@ edition = "2018"
 
 [features]
 default = [
-  "bevy/dynamic",
+  # "bevy/dynamic",
   # TODO: enable these only for debug window builds
   "bevy/bevy_gltf",
   "bevy/bevy_winit",
