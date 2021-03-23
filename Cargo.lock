@@ -649,8 +649,6 @@ dependencies = [
 [[package]]
 name = "bevy_networking_turbulence"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53df3a4ac9ff0d757916cc26d61b1d6a6e277c06e9a36252cbd9267fffaf5a37"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -2827,8 +2825,6 @@ dependencies = [
 [[package]]
 name = "naia-client-socket"
 version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d0ce565e7aabf2818dd47c64da8e0208d1511d7762a8b0d1db41c2a742ffe32"
 dependencies = [
  "cfg-if 0.1.10",
  "js-sys",
@@ -2844,8 +2840,6 @@ dependencies = [
 [[package]]
 name = "naia-server-socket"
 version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1f863f95fc67d8155cb2fff5b8fcf8019ae3ed63894676e696613409cb4ad67"
 dependencies = [
  "async-dup",
  "async-io",
@@ -2864,8 +2858,6 @@ dependencies = [
 [[package]]
 name = "naia-socket-shared"
 version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10b6c2bbecfd8f15f857ad7a9a4800ceb0f06b34f0dd3451ce157da3081e0ceb"
 dependencies = [
  "byteorder",
  "cfg-if 0.1.10",

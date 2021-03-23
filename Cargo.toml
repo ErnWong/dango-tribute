@@ -2,7 +2,10 @@
 members = ["crates/*", "client", "server", "shared"]
 
 [patch.crates-io]
+bevy_networking_turbulence = {path = "patches/bevy_networking_turbulence"}
 bevy_webgl2 = {path = "patches/bevy_webgl2"}
+naia-client-socket = {path = "patches/naia-socket/client"}
+naia-server-socket = {path = "patches/naia-socket/server"}
 nphysics2d = {path = "patches/nphysics/build/nphysics2d"}
 
 [patch."https://github.com/ostwilkens/bevy_web_fullscreen"]
