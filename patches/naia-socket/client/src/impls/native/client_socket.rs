@@ -11,6 +11,8 @@ use crate::{link_conditioner::LinkConditioner, ClientSocketTrait, MessageSender}
 
 use crate::{error::NaiaClientSocketError, Packet};
 
+use std::net::ToSocketAddrs;
+
 /// A client-side socket which communicates with an underlying unordered &
 /// unreliable protocol
 #[derive(Debug)]
@@ -23,7 +25,7 @@ pub struct ClientSocket {
 
 impl ClientSocket {
     /// Returns a new ClientSocket, connected to the given socket address
-    pub fn connect(server_socket_address: SocketAddr) -> Box<dyn ClientSocketTrait> {
+    pub fn connect(server_socket_address_string: String) -> Box<dyn ClientSocketTrait> {
         let client_ip_address = find_my_ip_address().expect("cannot find current ip address");
         let free_socket = find_available_port(&client_ip_address).expect("no available ports");
         let client_socket_address = format!("{}:{}", client_ip_address, free_socket);
@@ -33,6 +35,12 @@ impl ClientSocket {
             .borrow()
             .set_nonblocking(true)
             .expect("can't set socket to non-blocking!");
+
+        let server_socket_address = server_socket_address_string
+            .to_socket_addrs()
+            .unwrap()
+            .next()
+            .unwrap();
 
         let message_sender = MessageSender::new(server_socket_address, socket.clone());
 

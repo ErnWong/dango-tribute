@@ -16,7 +16,7 @@ use super::webrtc_internal::webrtc_initialize;
 /// unreliable protocol
 #[derive(Debug)]
 pub struct ClientSocket {
-    address: SocketAddr,
+    address: String,
     message_queue: Ref<VecDeque<Result<Option<Packet>, NaiaClientSocketError>>>,
     message_sender: MessageSender,
     dropped_outgoing_messages: Ref<VecDeque<Packet>>,
@@ -24,9 +24,9 @@ pub struct ClientSocket {
 
 impl ClientSocket {
     /// Returns a new ClientSocket, connected to the given socket address
-    pub fn connect(server_socket_address: SocketAddr) -> Box<dyn ClientSocketTrait> {
+    pub fn connect(server_socket_address: String) -> Box<dyn ClientSocketTrait> {
         let message_queue = Ref::new(VecDeque::new());
-        let data_channel = webrtc_initialize(server_socket_address, message_queue.clone());
+        let data_channel = webrtc_initialize(server_socket_address.clone(), message_queue.clone());
 
         let dropped_outgoing_messages = Ref::new(VecDeque::new());
 
