@@ -13,22 +13,24 @@
       canvas {
         touch-action: none;
         margin: auto;
-        transition: opacity 0.3s;
       }
       canvas:focus {
         outline: none;
         opacity: 1.0;
+        transition: opacity 0.5s 0.0s;
       }
       canvas:not(:focus) {
         opacity: 0.5;
+        transition: opacity 0.5s 0.5s;
       }
       body::before {
         content: '';
         opacity: 0.0;
-        transition: opacity 0.3s;
+        transition: opacity 0.5s 0.0s;
       }
       body:not(:focus-within)::before {
         content: 'Click to resume';
+        transition: opacity 0.5s 0.5s;
         position: absolute;
         opacity: 1.0;
         text-transform: uppercase;
