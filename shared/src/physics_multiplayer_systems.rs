@@ -411,7 +411,10 @@ fn update_transform(
 ) {
     transform.scale = Vec3::new(player_state.size, player_state.size, 1.0 / 1000.0);
     transform.translation.x = player_state.measurements.center_of_mass.x;
-    transform.translation.y = player_state.measurements.center_of_mass.y;
+
+    // HACK: Compensating outline's 0.1 thickness so it touches the ground at the right visual
+    // place, so that the shadows look correct.
+    transform.translation.y = player_state.measurements.center_of_mass.y + 0.05;
 
     shadow_transform.scale = Vec3::one() * player_state.size;
     shadow_transform.translation.x = transform.translation.x;
