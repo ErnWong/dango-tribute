@@ -117,10 +117,10 @@ vec2 gradient(vec2 pos) {
 }
 
 float vignette_mask() {
-    const float SQUARENESS = 2.7;
+    const float SQUARENESS = 4.0;
     vec2 r = gl_FragCoord.xy / i_resolution * 2.0 - 1.0;
     float t = pow(pow(abs(r.x), SQUARENESS) + pow(abs(r.y), SQUARENESS), 1.0 / SQUARENESS);
-    return 1.0 - smoothstep(0.6, 1.2, t);
+    return 1.0 - smoothstep(0.6, 1.0, t);
 }
 
 vec4 sketch_outline(float page, float amplitude) {
@@ -203,7 +203,7 @@ vec4 alpha(float value) {
 void main() {
     // Start with white, then mix as we go.
     o_color = vec4(1.0);
-    draw(paper_grain());
+    // draw(paper_grain());
     draw(smudge_fills(0.0));
     draw(smudge_fills(1.0));
     draw(smudge_fills(2.0));
@@ -213,7 +213,7 @@ void main() {
     draw(alpha(0.2) * sketch_hatch(2.0, polar(-40.0, 10.0 * 10.0), 0.0, 0.3, 0.5));
     draw(alpha(0.3) * sketch_hatch(3.0, polar(-50.0, 10.0 * 10.0), 0.0, 0.3, 0.5));
     draw(alpha(0.5) * paper_dents());
-    o_color.rgb *= mix(vignette_mask(), 1.0, 0.5);
+    o_color.rgb = mix(o_color.rgb, vec3(1.0), 1.0 - vignette_mask());
     o_color.rgb = sqrt(o_color.rgb);
 
     if (false && gl_FragCoord.x < i_mouse.x) {

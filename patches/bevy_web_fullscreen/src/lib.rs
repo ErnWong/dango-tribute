@@ -20,8 +20,9 @@ fn get_viewport_size() -> ViewportResized {
         .body()
         .expect("could not get body element");
 
-    let width = body.offset_width();
-    let height = body.offset_height();
+    // TODO: Make this configurable.
+    let width = std::cmp::min(body.offset_width(), 800);
+    let height = std::cmp::min(body.offset_height(), 300);
 
     ViewportResized {
         width: width as f32,
