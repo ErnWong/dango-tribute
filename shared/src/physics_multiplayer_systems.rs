@@ -199,7 +199,7 @@ fn sync_from_state(
         info!("Spawning player {:?}", player_id);
         let player_state = new_player_states.get(player_id).unwrap();
         let mut transform = Transform::default();
-        let mut shadow_transform = Transform::from_translation(Vec3::unit_z());
+        let mut shadow_transform = Transform::default();
         update_transform(
             &mut transform,
             &mut shadow_transform,
@@ -355,7 +355,6 @@ fn sync_from_state(
                 transform: shadow_transform,
                 global_transform: GlobalTransform::default(),
             })
-            .with(Parent(entity))
             .current_entity()
             .unwrap();
         commands.insert_one(entity, Shadow(shadow_entity));
@@ -369,7 +368,11 @@ fn sync_from_state(
 
     for player_id in to_despawn {
         info!("Despawning player {:?}", player_id);
-        commands.despawn_recursive(player_map.0.remove(player_id).unwrap());
+        let entity = player_map.0.remove(player_id).unwrap();
+        if let Ok(shadow_entity) = query.get_component::<Shadow>(entity) {
+            commands.despawn_recursive(shadow_entity.0);
+        }
+        commands.despawn_recursive(entity);
     }
 
     for (player_id, player_state) in new_player_states {
@@ -410,13 +413,14 @@ fn update_transform(
     transform.translation.x = player_state.measurements.center_of_mass.x;
     transform.translation.y = player_state.measurements.center_of_mass.y;
 
+    shadow_transform.scale = Vec3::one() * player_state.size;
+    shadow_transform.translation.x = transform.translation.x;
+    shadow_transform.translation.z = transform.translation.z;
+
     // Ensure each player gets their own z-space for drawing, since we don't want
     // one players outline and fill to sandwich another player's.
     transform.translation.z = -(player_id.0 as f32) / 1000.0;
     transform.rotation = Quat::from_rotation_z(player_state.measurements.mean_angle);
-
-    shadow_transform.scale = Vec3::unit_z() / transform.scale.z;
-    shadow_transform.translation.y = -transform.translation.y;
 }
 
 fn update_mesh(
