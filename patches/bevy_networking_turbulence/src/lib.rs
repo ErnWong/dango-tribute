@@ -203,7 +203,7 @@ impl NetworkResource {
         });
     }
 
-    pub fn connect(&mut self, socket_address: SocketAddr) {
+    pub fn connect(&mut self, socket_address: String) {
         let mut client_socket = {
             let socket = ClientSocket::connect(socket_address);
 
