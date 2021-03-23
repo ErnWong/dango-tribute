@@ -1,0 +1,58 @@
+[package]
+name = "bevy_networking_turbulence"
+version = "0.2.0"
+edition = "2018"
+authors = ["Tomasz Sterna <tomasz@sterna.link>"]
+description = "Networking plugin for Bevy engine running on naia-socket and turbulence libraries"
+readme = "README.md"
+license = "MIT"
+homepage = "https://github.com/smokku/bevy_networking_turbulence"
+repository = "https://github.com/smokku/bevy_networking_turbulence"
+keywords = ["bevy", "gamedev", "networking", "udp", "webrtc"]
+categories = [
+    "game-development",
+    "network-programming",
+    "wasm",
+    "web-programming",
+]
+exclude = [".git*"]
+
+[features]
+default = ["use-udp"]
+use-udp = ["naia-server-socket/use-udp"]
+use-webrtc = [
+    "naia-server-socket/use-webrtc",
+    "naia-client-socket/wbindgen",
+    "futures-timer/wasm-bindgen"
+]
+
+[dependencies]
+bevy_app = "0.4"
+bevy_ecs = "0.4"
+bevy_tasks = "0.4"
+turbulence = "0.3"
+naia-client-socket = { version = "0.5", features = ["multithread"] }
+bytes = "1.0"
+log = "0.4"
+futures-lite = "1.11"
+crossbeam-channel = "0.5"
+cfg-if = "1.0"
+instant = "0.1"
+futures = "0.3"
+futures-timer = "3.0"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+naia-server-socket = "0.4"
+
+[dev-dependencies]
+bevy = { version = "0.4", default-features = false }
+serde = { version = "1.0", features = ["derive"] }
+simple_logger = "1"
+rand = { version = "0.7.3", features = ["wasm-bindgen"] }
+console_error_panic_hook = "0.1"
+console_log = "0.2"
+
+[[example]]
+name = "channels"
+path = "examples/channels.rs"
+required-features = ["bevy/default"]
