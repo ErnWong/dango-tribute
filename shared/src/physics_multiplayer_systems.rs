@@ -129,6 +129,10 @@ enum DrawMode {
     Spline,
 }
 
+const PLAYER_Z_SPACE: f32 = 0.1;
+const MAX_PLAYERS: f32 = 100.0;
+const SHADOW_Z_OFFSET: f32 = 1.0;
+
 pub fn physics_multiplayer_client_sync_system(
     mut player_map: Local<PlayerMap>,
     commands: &mut Commands,
@@ -222,16 +226,16 @@ fn sync_from_state(
         )));
         let shadow_vertices: Vec<[f32; 3]> = [
             // Center
-            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0 + SHADOW_Z_OFFSET],
             // 8 corners of an octagon starting from x axis
-            [-1.0 * 0.924, 0.0, 0.383],
-            [-1.0 * 0.383, 0.0, 0.924],
-            [-1.0 * -0.383, 0.0, 0.924],
-            [-1.0 * -0.924, 0.0, 0.383],
-            [-1.0 * -0.924, 0.0, -0.383],
-            [-1.0 * -0.383, 0.0, -0.924],
-            [-1.0 * 0.383, 0.0, -0.924],
-            [-1.0 * 0.924, 0.0, -0.383],
+            [-1.0 * 0.924, 0.0, 0.383 + SHADOW_Z_OFFSET],
+            [-1.0 * 0.383, 0.0, 0.924 + SHADOW_Z_OFFSET],
+            [-1.0 * -0.383, 0.0, 0.924 + SHADOW_Z_OFFSET],
+            [-1.0 * -0.924, 0.0, 0.383 + SHADOW_Z_OFFSET],
+            [-1.0 * -0.924, 0.0, -0.383 + SHADOW_Z_OFFSET],
+            [-1.0 * -0.383, 0.0, -0.924 + SHADOW_Z_OFFSET],
+            [-1.0 * 0.383, 0.0, -0.924 + SHADOW_Z_OFFSET],
+            [-1.0 * 0.924, 0.0, -0.383 + SHADOW_Z_OFFSET],
         ]
         .into();
         shadow_mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, shadow_vertices);
@@ -409,21 +413,26 @@ fn update_transform(
     player_id: &PlayerId,
     player_state: &PlayerDisplayState,
 ) {
-    transform.scale = Vec3::new(player_state.size, player_state.size, 1.0 / 1000.0);
+    transform.scale = Vec3::new(
+        player_state.size,
+        player_state.size,
+        PLAYER_Z_SPACE / MAX_PLAYERS,
+    );
     transform.translation.x = player_state.measurements.center_of_mass.x;
 
     // HACK: Compensating outline's 0.1 thickness so it touches the ground at the right visual
     // place, so that the shadows look correct.
     transform.translation.y = player_state.measurements.center_of_mass.y + 0.05;
 
-    shadow_transform.scale = Vec3::one() * player_state.size;
-    shadow_transform.translation.x = transform.translation.x;
-    shadow_transform.translation.z = transform.translation.z;
-
     // Ensure each player gets their own z-space for drawing, since we don't want
     // one players outline and fill to sandwich another player's.
-    transform.translation.z = -(player_id.0 as f32) / 1000.0;
+    transform.translation.z = -(player_id.0 as f32) * PLAYER_Z_SPACE / MAX_PLAYERS;
     transform.rotation = Quat::from_rotation_z(player_state.measurements.mean_angle);
+
+    shadow_transform.scale = Vec3::one() * player_state.size;
+    shadow_transform.translation.x = transform.translation.x;
+    shadow_transform.translation.z =
+        transform.translation.z - SHADOW_Z_OFFSET * shadow_transform.scale.z;
 }
 
 fn update_mesh(
