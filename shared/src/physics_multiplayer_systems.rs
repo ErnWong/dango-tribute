@@ -355,6 +355,7 @@ fn sync_from_state(
                 transform: shadow_transform,
                 global_transform: GlobalTransform::default(),
             })
+            .with(Parent(entity))
             .current_entity()
             .unwrap();
         commands.insert_one(entity, Shadow(shadow_entity));
@@ -409,14 +410,13 @@ fn update_transform(
     transform.translation.x = player_state.measurements.center_of_mass.x;
     transform.translation.y = player_state.measurements.center_of_mass.y;
 
-    shadow_transform.scale = Vec3::one() * player_state.size;
-    shadow_transform.translation.x = transform.translation.x;
-    shadow_transform.translation.z = transform.translation.z;
-
     // Ensure each player gets their own z-space for drawing, since we don't want
     // one players outline and fill to sandwich another player's.
     transform.translation.z = -(player_id.0 as f32) / 1000.0;
     transform.rotation = Quat::from_rotation_z(player_state.measurements.mean_angle);
+
+    shadow_transform.scale = Vec3::unit_z() / transform.scale.z;
+    shadow_transform.translation.y = -transform.translation.y;
 }
 
 fn update_mesh(
