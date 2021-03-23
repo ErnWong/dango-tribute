@@ -20,36 +20,57 @@ pub fn spawn_sakura(
     const WIDTH: f32 = 40.0;
     const THICKNESS: f32 = 2.5;
     const HEIGHT: f32 = 1.0;
-    const LEAF_DENSITY: f32 = 60.0;
+    const LEAF_DENSITY: f32 = 100.0;
     const DISTANCE: f32 = 5.0;
-    const LEAF_SIZE_MIN: f32 = 0.2;
-    const LEAF_SIZE_MAX: f32 = 0.4;
+    const LEAF_SIZE_MIN: f32 = 0.1;
+    const LEAF_SIZE_MAX: f32 = 0.2;
+    const LEAF_BATCHES: usize = 20;
     const TRUNK_DENSITY: f32 = 0.5;
     const TRUNK_THICKNESS: f32 = 0.2;
     const GROUND_FAR: f32 = -2.0;
     const GROUND_CLOSE: f32 = 10.0;
 
-    let mut leaf_mesh = Mesh::new(PrimitiveTopology::TriangleList);
-    leaf_mesh.set_indices(Some(Indices::U32([0, 1, 2].into())));
-    let leaf_vertices: Vec<[f32; 3]> = [[0.0, 0.5, 0.0], [1.0, 0.0, 0.0], [0.0, -0.5, 0.0]].into();
-    leaf_mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, leaf_vertices);
-    leaf_mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0; 3]; 3]);
-    leaf_mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0; 3]; 3]);
-    let leaf_mesh_handle = meshes.add(leaf_mesh);
+    const THIRD_REV: f32 = std::f32::consts::PI * 2.0 / 3.0;
 
-    for i in 0..((WIDTH * LEAF_DENSITY) as i32) {
-        let x = i as f32 / LEAF_DENSITY - WIDTH * 0.5;
-        let y = rand::thread_rng().gen_range(HEIGHT..(HEIGHT + THICKNESS));
+    for batch in 0..LEAF_BATCHES {
+        let mut leaf_indices: Vec<u32> = Vec::new();
+        let mut leaf_vertices: Vec<[f32; 3]> = Vec::new();
+        for i in 0..((WIDTH * LEAF_DENSITY / LEAF_BATCHES as f32) as i32) {
+            let x = (i as f32 / LEAF_DENSITY * LEAF_BATCHES as f32
+                + batch as f32 / LEAF_BATCHES as f32)
+                - WIDTH * 0.5;
+            let y = rand::thread_rng().gen_range(HEIGHT..(HEIGHT + THICKNESS));
+            let angle = rand::thread_rng().gen_range(0.0..THIRD_REV);
+            let size = rand::thread_rng().gen_range(LEAF_SIZE_MIN..LEAF_SIZE_MAX);
+            for j in 0..3 {
+                leaf_indices.push(leaf_vertices.len() as u32);
+                leaf_vertices.push([
+                    x + size * (angle + j as f32 * THIRD_REV).cos(),
+                    y + size * (angle + j as f32 * THIRD_REV).sin(),
+                    0.0,
+                ]);
+            }
+        }
+
+        let mut leaf_mesh = Mesh::new(PrimitiveTopology::TriangleList);
+        leaf_mesh.set_indices(Some(Indices::U32(leaf_indices)));
+        leaf_mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0; 3]; leaf_vertices.len()]);
+        leaf_mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0; 3]; leaf_vertices.len()]);
+        leaf_mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, leaf_vertices);
+        let leaf_mesh_handle = meshes.add(leaf_mesh);
+
         let z = rand::thread_rng()
             .gen_range((-DISTANCE - THICKNESS * 0.5)..(-DISTANCE + THICKNESS * 0.5));
-        let angle = rand::thread_rng().gen_range(0.0..(2.0 * std::f32::consts::PI));
+
         let transform = Transform {
-            translation: Vec3::new(x, y, z),
-            rotation: Quat::from_rotation_z(angle),
-            scale: Vec3::one() * rand::thread_rng().gen_range(LEAF_SIZE_MIN..LEAF_SIZE_MAX),
+            translation: Vec3::unit_z() * z,
+            rotation: Quat::default(),
+            scale: Vec3::one(),
         };
+
         let brightness = rand::thread_rng().gen_range(0.5..1.0);
         let color = Color::rgb(1.0 * brightness, 0.4 * brightness, 0.5 * brightness);
+
         commands.spawn(SpriteBundle {
             sprite: Sprite {
                 size: Vec2::one(),
