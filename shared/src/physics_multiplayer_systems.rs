@@ -22,7 +22,7 @@ use bevy_prototype_networked_physics::{
     net::NetworkResource,
 };
 
-#[cfg(not(target_arch = "wasm32"))]
+//#[cfg(not(target_arch = "wasm32"))]
 use bevy_prototype_networked_physics::server::Server;
 
 use bevy_prototype_transform_tracker::TransformTrackingTarget;
@@ -76,7 +76,7 @@ pub fn physics_multiplayer_client_spawn_system(
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+//#[cfg(not(target_arch = "wasm32"))]
 pub fn physics_multiplayer_server_despawn_system(
     mut state: Local<SpawnSystemState>,
     mut server: ResMut<Server<PhysicsWorld>>,

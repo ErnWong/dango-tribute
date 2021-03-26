@@ -20,18 +20,34 @@ features = [ "use-webrtc" ]
 
 [features]
 use-udp = [ ]
-use-webrtc = [ "webrtc-unreliable", "smol", "async-dup", "http", "futures-core" ]
+# use-webrtc = [ "webrtc-unreliable", "smol", "async-dup", "http", "futures-core" ]
+use-webrtc = [ "webrtc-unreliable", "async-dup", "http", "futures-core" ]
+# use-wbindgen = [ "naia-socket-shared/wbindgen", "url", "wasm-bindgen", "js-sys", "web_sys", "futures-core", "smol", "rand", "serde", "serde_derive" ]
+use-wbindgen = [ "naia-socket-shared/wbindgen", "url", "wasm-bindgen", "js-sys", "web_sys", "futures-core",  "rand", "serde", "serde_derive", "wasm-bindgen-futures" ]
 
 [dependencies]
 naia-socket-shared = { version = "0.4.1", path = "../shared" }
 log = "0.4"
 cfg-if = "0.1.10"
-async-io = { version = "1.1" }
+# async-io = { version = "1.1" }
 async-trait = "0.1.36"
 futures-channel = { version = "0.3", features = ["sink"] }
 futures-core = { version = "0.3", optional = true }
 futures-util = { version = "0.3", features = ["sink"] }
 webrtc-unreliable = { version = "0.5.0", optional = true }
-smol = { version = "1.2.4", optional = true }
+# smol = { version = "1.2.4", optional = true }
 async-dup = { version = "1.2.2", optional = true }
 http = { version = "0.2", optional = true }
+url = { version = "2.1.1", optional = true }
+js-sys = { version = "0.3", optional = true  }
+wasm-bindgen = { version = "0.2.45", features = [ "serde-serialize" ], optional = true  }
+wasm-bindgen-futures = { version = "0.4.19", optional = true}
+serde = { version = "^1.0.59", optional = true }
+serde_derive = { version = "^1.0.59", optional = true  }
+web_sys = { version = "0.3.22", package = "web-sys", features = [
+    "RtcConfiguration", "RtcDataChannel", "RtcDataChannelInit", "RtcDataChannelType",
+    "RtcIceCandidate", "RtcIceCandidateInit",
+    "RtcPeerConnection", "RtcSdpType",  "RtcSessionDescription", "RtcSessionDescriptionInit",
+    "RtcPeerConnectionIceEvent", "WebSocket",
+    "XmlHttpRequest", "XmlHttpRequestEventTarget", "MessageEvent", "ProgressEvent", "ErrorEvent", "Blob" ], optional = true  }
+rand = { version = "0.8.3", optional = true }

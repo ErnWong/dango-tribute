@@ -8,7 +8,7 @@ use bevy_prototype_transform_tracker::TransformTrackingFollower;
 use shared::{physics_multiplayer::PhysicsWorld, physics_multiplayer_systems, settings};
 use std::time::Duration;
 
-const SHOW_DEBUG_WINDOW: bool = false;
+// const SHOW_DEBUG_WINDOW: bool = false;
 
 fn main() {
     let mut app = App::build();
@@ -29,25 +29,25 @@ fn main() {
     .add_plugin(bevy::asset::AssetPlugin::default())
     .add_plugin(bevy::scene::ScenePlugin::default());
 
-    if SHOW_DEBUG_WINDOW {
-        app.add_resource(ClearColor(Color::WHITE))
-            .add_plugin(bevy::transform::TransformPlugin::default())
-            .add_plugin(bevy::input::InputPlugin::default())
-            .add_plugin(bevy::window::WindowPlugin::default())
-            .add_plugin(bevy::render::RenderPlugin::default())
-            .add_plugin(bevy::sprite::SpritePlugin::default())
-            .add_plugin(bevy::pbr::PbrPlugin::default())
-            .add_plugin(bevy::ui::UiPlugin::default())
-            .add_plugin(bevy::text::TextPlugin::default())
-            .add_plugin(bevy::gltf::GltfPlugin::default())
-            .add_plugin(bevy::winit::WinitPlugin::default())
-            .add_plugin(bevy::wgpu::WgpuPlugin::default());
-    } else {
-        app.add_resource(ScheduleRunnerSettings::run_loop(Duration::from_secs_f32(
-            1.0 / 60.0,
-        )))
-        .add_plugin(bevy::app::ScheduleRunnerPlugin::default());
-    }
+    // if SHOW_DEBUG_WINDOW {
+    //     app.add_resource(ClearColor(Color::WHITE))
+    //         .add_plugin(bevy::transform::TransformPlugin::default())
+    //         .add_plugin(bevy::input::InputPlugin::default())
+    //         .add_plugin(bevy::window::WindowPlugin::default())
+    //         .add_plugin(bevy::render::RenderPlugin::default())
+    //         .add_plugin(bevy::sprite::SpritePlugin::default())
+    //         .add_plugin(bevy::pbr::PbrPlugin::default())
+    //         .add_plugin(bevy::ui::UiPlugin::default())
+    //         .add_plugin(bevy::text::TextPlugin::default())
+    //         .add_plugin(bevy::gltf::GltfPlugin::default())
+    //         .add_plugin(bevy::winit::WinitPlugin::default())
+    //         .add_plugin(bevy::wgpu::WgpuPlugin::default());
+    // } else {
+    app.add_resource(ScheduleRunnerSettings::run_loop(Duration::from_secs_f32(
+        1.0 / 60.0,
+    )))
+    .add_plugin(bevy::app::ScheduleRunnerPlugin::default());
+    // }
 
     app.add_plugin(NetworkedPhysicsServerPlugin::<PhysicsWorld>::new(
         settings::NETWORKED_PHYSICS_CONFIG,
@@ -62,12 +62,12 @@ fn main() {
             physics_multiplayer_systems::physics_multiplayer_server_despawn_system.system(),
         );
 
-    if SHOW_DEBUG_WINDOW {
-        app.add_system(
-            physics_multiplayer_systems::physics_multiplayer_server_diagnostic_sync_system.system(),
-        )
-        .add_startup_system(debug_window_setup.system());
-    }
+    // if SHOW_DEBUG_WINDOW {
+    //     app.add_system(
+    //         physics_multiplayer_systems::physics_multiplayer_server_diagnostic_sync_system.system(),
+    //     )
+    //     .add_startup_system(debug_window_setup.system());
+    // }
 
     app.run();
 }

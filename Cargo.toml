@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*", "client", "server", "shared"]
+members = ["crates/*", "client", "server", "shared", "signalling-server"]
 
 [patch.crates-io]
 bevy_networking_turbulence = {path = "patches/bevy_networking_turbulence"}

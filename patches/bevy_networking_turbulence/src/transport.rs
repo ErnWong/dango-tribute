@@ -1,4 +1,4 @@
-#[cfg(not(target_arch = "wasm32"))]
+// #[cfg(not(target_arch = "wasm32"))]
 use bevy_tasks::Task;
 use bevy_tasks::TaskPool;
 use bytes::Bytes;
@@ -7,7 +7,7 @@ use std::{error::Error, net::SocketAddr};
 use naia_client_socket::{
     ClientSocketTrait, MessageSender as ClientSender, Packet as ClientPacket,
 };
-#[cfg(not(target_arch = "wasm32"))]
+// #[cfg(not(target_arch = "wasm32"))]
 use naia_server_socket::{MessageSender as ServerSender, Packet as ServerPacket};
 
 use turbulence::{
@@ -17,7 +17,7 @@ use turbulence::{
     packet_multiplexer::{IncomingMultiplexedPackets, MuxPacket, MuxPacketPool, PacketMultiplexer},
 };
 
-#[cfg(not(target_arch = "wasm32"))]
+// #[cfg(not(target_arch = "wasm32"))]
 use futures_lite::future::block_on;
 
 use futures_lite::StreamExt;
@@ -48,7 +48,7 @@ pub trait Connection: Send + Sync {
     fn channels_rx(&mut self) -> Option<&mut IncomingMultiplexedPackets<MultiplexedPacket>>;
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+// #[cfg(not(target_arch = "wasm32"))]
 pub struct ServerConnection {
     task_pool: TaskPool,
 
@@ -58,10 +58,11 @@ pub struct ServerConnection {
 
     channels: Option<MessageChannels>,
     channels_rx: Option<IncomingMultiplexedPackets<MultiplexedPacket>>,
-    channels_task: Option<Task<()>>,
+    //channels_task: Option<Task<()>>,
+    //channels_task: Option<FakeTask>,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+// #[cfg(not(target_arch = "wasm32"))]
 impl ServerConnection {
     pub fn new(
         task_pool: TaskPool,
@@ -76,12 +77,12 @@ impl ServerConnection {
             client_address,
             channels: None,
             channels_rx: None,
-            channels_task: None,
+            //channels_task: None,
         }
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+// #[cfg(not(target_arch = "wasm32"))]
 impl Connection for ServerConnection {
     fn remote_address(&self) -> Option<SocketAddr> {
         Some(self.client_address)
@@ -122,7 +123,8 @@ impl Connection for ServerConnection {
 
         let mut sender = self.sender.take().unwrap();
         let client_address = self.client_address;
-        self.channels_task = Some(self.task_pool.spawn(async move {
+        /*self.channels_task =*/
+        Some(self.task_pool.spawn(async move {
             loop {
                 let packet = channels_tx.next().await.unwrap();
                 sender
@@ -150,8 +152,8 @@ pub struct ClientConnection {
 
     channels: Option<MessageChannels>,
     channels_rx: Option<IncomingMultiplexedPackets<MultiplexedPacket>>,
-    #[cfg(not(target_arch = "wasm32"))]
-    channels_task: Option<Task<()>>,
+    // #[cfg(not(target_arch = "wasm32"))]
+    //channels_task: Option<Task<()>>,
 }
 
 impl ClientConnection {
@@ -166,8 +168,8 @@ impl ClientConnection {
             sender: Some(sender),
             channels: None,
             channels_rx: None,
-            #[cfg(not(target_arch = "wasm32"))]
-            channels_task: None,
+            // #[cfg(not(target_arch = "wasm32"))]
+            //channels_task: None,
         }
     }
 }
@@ -224,9 +226,9 @@ impl Connection for ClientConnection {
             }
         });
 
-        #[cfg(not(target_arch = "wasm32"))]
+        //#[cfg(not(target_arch = "wasm32"))]
         {
-            self.channels_task = Some(channels_task);
+            //self.channels_task = Some(channels_task);
         }
     }
 

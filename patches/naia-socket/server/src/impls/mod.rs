@@ -7,6 +7,10 @@ cfg_if! {
         mod webrtc;
         pub use self::webrtc::server_socket::ServerSocket;
     }
+    else if #[cfg(feature = "use-wbindgen")] {
+        mod wasm_bindgen;
+        pub use self::wasm_bindgen::server_socket::ServerSocket;
+    }
     else {
     }
 }

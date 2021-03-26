@@ -2,9 +2,9 @@ use bevy_app::{AppBuilder, Events, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_tasks::{IoTaskPool, TaskPool};
 
-#[cfg(not(target_arch = "wasm32"))]
+// #[cfg(not(target_arch = "wasm32"))]
 use crossbeam_channel::{unbounded, Receiver, Sender};
-#[cfg(not(target_arch = "wasm32"))]
+// #[cfg(not(target_arch = "wasm32"))]
 use std::sync::RwLock;
 use std::{
     collections::HashMap,
@@ -15,11 +15,11 @@ use std::{
 };
 
 use naia_client_socket::ClientSocket;
-#[cfg(not(target_arch = "wasm32"))]
+// #[cfg(not(target_arch = "wasm32"))]
 use naia_server_socket::{MessageSender as ServerSender, ServerSocket};
 
 pub use naia_client_socket::LinkConditionerConfig;
-#[cfg(not(target_arch = "wasm32"))]
+// #[cfg(not(target_arch = "wasm32"))]
 pub use naia_server_socket::find_my_ip_address;
 
 use turbulence::{
@@ -70,9 +70,9 @@ pub struct NetworkResource {
     connection_sequence: atomic::AtomicU32,
     pub connections: HashMap<ConnectionHandle, Box<dyn Connection>>,
 
-    #[cfg(not(target_arch = "wasm32"))]
+    // #[cfg(not(target_arch = "wasm32"))]
     listeners: Vec<ServerListener>,
-    #[cfg(not(target_arch = "wasm32"))]
+    // #[cfg(not(target_arch = "wasm32"))]
     server_channels: Arc<RwLock<HashMap<SocketAddr, Sender<Packet>>>>,
 
     runtime: TaskPoolRuntime,
@@ -82,12 +82,12 @@ pub struct NetworkResource {
     link_conditioner: Option<LinkConditionerConfig>,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+// #[cfg(not(target_arch = "wasm32"))]
 #[allow(dead_code)] // FIXME: remove this struct?
 struct ServerListener {
-    receiver_task: bevy_tasks::Task<()>, // needed to keep receiver_task alive
+    //receiver_task: bevy_tasks::Task<()>, // needed to keep receiver_task alive
+    //receiver_task: FakeTask, // needed to keep receiver_task alive
     sender: ServerSender,
-    socket_address: SocketAddr,
 }
 
 #[derive(Debug)]
@@ -114,9 +114,9 @@ impl NetworkResource {
             connections: HashMap::new(),
             connection_sequence: atomic::AtomicU32::new(0),
             pending_connections: Arc::new(Mutex::new(Vec::new())),
-            #[cfg(not(target_arch = "wasm32"))]
+            // #[cfg(not(target_arch = "wasm32"))]
             listeners: Vec::new(),
-            #[cfg(not(target_arch = "wasm32"))]
+            // #[cfg(not(target_arch = "wasm32"))]
             server_channels: Arc::new(RwLock::new(HashMap::new())),
             runtime,
             packet_pool,
@@ -126,10 +126,10 @@ impl NetworkResource {
         }
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn listen(&mut self, socket_address: SocketAddr) {
+    pub fn listen(&mut self, signalling_server_url: String) {
         let mut server_socket = {
-            let socket = futures_lite::future::block_on(ServerSocket::listen(socket_address));
+            let socket =
+                futures_lite::future::block_on(ServerSocket::listen(signalling_server_url));
 
             if let Some(ref conditioner) = self.link_conditioner {
                 socket.with_link_conditioner(conditioner)
@@ -197,9 +197,8 @@ impl NetworkResource {
         });
 
         self.listeners.push(ServerListener {
-            receiver_task,
+            //receiver_task,
             sender,
-            socket_address,
         });
     }
 

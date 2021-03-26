@@ -12,9 +12,12 @@ default = [
   "bevy/bevy_winit",
   "bevy/render",
   "bevy/png",
-  "bevy/bevy_wgpu",
   "bevy_prototype_networked_physics/use-webrtc",
   "winit",
+]
+web = []
+native = [
+  "bevy/bevy_wgpu",
 ]
 
 [dependencies]

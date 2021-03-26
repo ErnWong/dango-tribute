@@ -21,7 +21,7 @@ exclude = [".git*"]
 default = ["use-udp"]
 use-udp = ["naia-server-socket/use-udp"]
 use-webrtc = [
-    "naia-server-socket/use-webrtc",
+    "naia-server-socket/use-wbindgen",
     "naia-client-socket/wbindgen",
     "futures-timer/wasm-bindgen"
 ]
@@ -41,7 +41,7 @@ instant = "0.1"
 futures = "0.3"
 futures-timer = "3.0"
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 naia-server-socket = "0.4"
 
 [dev-dependencies]

@@ -18,11 +18,19 @@ extern crate log;
 #[macro_use]
 extern crate cfg_if;
 
+cfg_if! {
+    if #[cfg(feature = "use-wbindgen")] {
+        extern crate serde_derive;
+    }
+    else {
+    }
+}
+
 pub use naia_socket_shared::LinkConditionerConfig;
 
 mod error;
 mod impls;
-mod link_conditioner;
+// mod link_conditioner;
 mod message_sender;
 mod packet;
 mod server_socket_trait;
@@ -40,9 +48,9 @@ cfg_if! {
         // Use both protocols...
         compile_error!("Naia Server Socket can only use UDP or WebRTC, you must pick one");
     }
-    else if #[cfg(all(not(feature = "use-udp"), not(feature = "use-webrtc")))]
+    else if #[cfg(all(not(feature = "use-udp"), not(feature = "use-webrtc"), not(feature="use-wbindgen")))]
     {
         // Use no protocols...
-        compile_error!("Naia Server Socket requires either the 'use-udp' or 'use-webrtc' feature to be enabled, you must pick one.");
+        compile_error!("Naia Server Socket requires either the 'use-udp' or 'use-webrtc' or 'use-wbindgen' feature to be enabled, you must pick one.");
     }
 }
