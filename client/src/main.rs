@@ -3,6 +3,7 @@ use bevy::{
     prelude::*,
     render::{pass::ClearColor, render_graph::base::BaseRenderGraphConfig},
 };
+use bevy_kira_audio::{Audio, AudioPlugin};
 use bevy_web_fullscreen::FullViewportPlugin;
 
 use bevy_prototype_frameshader::FrameshaderPlugin;
@@ -92,6 +93,7 @@ fn main() {
 
     app.add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(PrintDiagnosticsPlugin::default())
+        .add_plugin(AudioPlugin)
         .add_plugin(FrameshaderPlugin::new(
             VERTEX_SHADER_PATH.into(),
             FRAGMENT_SHADER_PATH.into(),
@@ -117,9 +119,14 @@ fn setup_hot_reloading(asset_server: ResMut<AssetServer>) {
 
 fn setup(
     commands: &mut Commands,
+    asset_server: ResMut<AssetServer>,
+    audio: Res<Audio>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
+    let bgm = asset_server.load("soundtracks/untitled.wav");
+    audio.play_looped(bgm);
+
     commands
         .spawn(Camera2point5dBundle {
             transform: Transform::from_translation(Vec3::unit_z() * 8.0)
