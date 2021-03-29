@@ -57,247 +57,264 @@ pub struct ServerSocket {
 impl ServerSocket {
     /// TODO
     pub async fn listen(signalling_server_url: String) -> Box<dyn ServerSocketTrait> {
+        //web_sys::console::log_1(&"Server listening to new WebRTC connections...".into());
+
         let (to_client_sender, mut to_client_receiver) =
             mpsc::channel::<Packet>(CLIENT_CHANNEL_SIZE);
         let (from_client_sender, from_client_receiver) = mpsc::channel(CLIENT_CHANNEL_SIZE);
 
-        let evil = std::thread::spawn(move || {
-            spawn_local(async move {
-                let (mut new_client_sender, mut new_client_receiver) =
-                    mpsc::channel(CLIENT_CHANNEL_SIZE);
-                let mut clients: HashMap<SocketAddr, RtcDataChannel> = HashMap::new();
-                let signalling_socket = WebSocket::new(signalling_server_url.as_str()).unwrap();
+        //let evil = std::thread::spawn(move || {
+        spawn_local(async move {
+            let (mut new_client_sender, mut new_client_receiver) =
+                mpsc::channel(CLIENT_CHANNEL_SIZE);
+            let mut clients: HashMap<SocketAddr, RtcDataChannel> = HashMap::new();
+            let signalling_socket = WebSocket::new(signalling_server_url.as_str()).unwrap();
 
-                let signalling_socket_clone = signalling_socket.clone();
-                let signalling_socket_onmessage_func: Box<dyn FnMut(MessageEvent)> = Box::new(
-                    move |event: MessageEvent| {
-                        if let Ok(offer_sdp_string) = event.data().dyn_into::<js_sys::JsString>() {
-                            // TODO: we don't know the address unless we try parsing sdp. Too
-                            // much effort.
-                            let fake_socket_address = SocketAddr::new(
-                                IpAddr::V4(Ipv4Addr::new(
-                                    rand::thread_rng().gen_range(0..255),
-                                    rand::thread_rng().gen_range(0..255),
-                                    rand::thread_rng().gen_range(0..255),
-                                    rand::thread_rng().gen_range(0..255),
-                                )),
-                                rand::thread_rng().gen_range(0..65353),
+            //web_sys::console::log_1(&"Waiting for connections via websocket relay...".into());
+            let signalling_socket_clone = signalling_socket.clone();
+            let signalling_socket_onmessage_func: Box<dyn FnMut(MessageEvent)> = Box::new(
+                move |event: MessageEvent| {
+                    if let Ok(offer_sdp_string) = event.data().dyn_into::<js_sys::JsString>() {
+                        // web_sys::console::log_1(
+                        //     &"Got an offer string - creating rtc channel".into(),
+                        // );
+                        // TODO: we don't know the address unless we try parsing sdp. Too
+                        // much effort.
+                        let fake_socket_address = SocketAddr::new(
+                            IpAddr::V4(Ipv4Addr::new(
+                                rand::thread_rng().gen_range(0..255),
+                                rand::thread_rng().gen_range(0..255),
+                                rand::thread_rng().gen_range(0..255),
+                                rand::thread_rng().gen_range(0..255),
+                            )),
+                            rand::thread_rng().gen_range(0..65353),
+                        );
+
+                        let mut peer_config: RtcConfiguration = RtcConfiguration::new();
+                        let ice_server_config = IceServerConfig {
+                            urls: ["stun:stun.l.google.com:19302".to_string()],
+                        };
+                        let ice_server_config_list = [ice_server_config];
+
+                        peer_config
+                            .ice_servers(&JsValue::from_serde(&ice_server_config_list).unwrap());
+                        let peer = RtcPeerConnection::new_with_configuration(&peer_config).unwrap();
+
+                        let mut data_channel_config: RtcDataChannelInit = RtcDataChannelInit::new();
+                        data_channel_config.ordered(false);
+                        data_channel_config.max_retransmits(0);
+                        data_channel_config.negotiated(true);
+                        data_channel_config.id(0);
+
+                        let channel: RtcDataChannel = peer
+                            .create_data_channel_with_data_channel_dict(
+                                "webudp",
+                                &data_channel_config,
                             );
+                        channel.set_binary_type(RtcDataChannelType::Arraybuffer);
 
-                            let mut peer_config: RtcConfiguration = RtcConfiguration::new();
-                            let ice_server_config = IceServerConfig {
-                                urls: ["stun:stun.l.google.com:19302".to_string()],
-                            };
-                            let ice_server_config_list = [ice_server_config];
+                        // XXX: timing: wait for new_client_sender to be ready, or
+                        // notify error.
+                        new_client_sender.try_send((fake_socket_address, channel.clone()));
 
-                            peer_config.ice_servers(
-                                &JsValue::from_serde(&ice_server_config_list).unwrap(),
-                            );
-                            let peer =
-                                RtcPeerConnection::new_with_configuration(&peer_config).unwrap();
+                        let cloned_channel = channel.clone();
+                        let from_client_sender_clone = from_client_sender.clone();
+                        let channel_onopen_func: Box<dyn FnMut(JsValue)> = Box::new(move |_| {
+                            //web_sys::console::log_1(&"Rtc channel opened".into());
+                            let mut from_client_sender_clone_2 = from_client_sender_clone.clone();
+                            let channel_onmsg_func: Box<dyn FnMut(MessageEvent)> =
+                                Box::new(move |evt: MessageEvent| {
+                                    //web_sys::console::log_1(&"Rtc channel onmessage".into());
+                                    if let Ok(arraybuf) =
+                                        evt.data().dyn_into::<js_sys::ArrayBuffer>()
+                                    {
+                                        let uarray: js_sys::Uint8Array =
+                                            js_sys::Uint8Array::new(&arraybuf);
+                                        // web_sys::console::log_1(
+                                        //     &"Receive data of length {}".into(),
+                                        //     //uarray.length().into()
+                                        // );
+                                        let mut body = vec![0; uarray.length() as usize];
+                                        uarray.copy_to(&mut body[..]);
+                                        from_client_sender_clone_2
+                                            .try_send(Ok(Packet::new(fake_socket_address, body)));
+                                    }
+                                });
+                            let channel_onmsg_closure = Closure::wrap(channel_onmsg_func);
 
-                            let mut data_channel_config: RtcDataChannelInit =
-                                RtcDataChannelInit::new();
-                            data_channel_config.ordered(false);
-                            data_channel_config.max_retransmits(0);
+                            cloned_channel.set_onmessage(Some(
+                                channel_onmsg_closure.as_ref().unchecked_ref(),
+                            ));
+                            channel_onmsg_closure.forget();
+                        });
+                        let channel_onopen_closure = Closure::wrap(channel_onopen_func);
+                        channel.set_onopen(Some(channel_onopen_closure.as_ref().unchecked_ref()));
+                        channel_onopen_closure.forget();
 
-                            let channel: RtcDataChannel = peer
-                                .create_data_channel_with_data_channel_dict(
-                                    "webudp",
-                                    &data_channel_config,
-                                );
-                            channel.set_binary_type(RtcDataChannelType::Arraybuffer);
+                        let onerror_func: Box<dyn FnMut(ErrorEvent)> =
+                            Box::new(move |e: ErrorEvent| {
+                                info!("data channel error event: {:?}", e);
+                            });
+                        let onerror_callback = Closure::wrap(onerror_func);
+                        channel.set_onerror(Some(onerror_callback.as_ref().unchecked_ref()));
+                        onerror_callback.forget();
 
-                            // XXX: timing: wait for new_client_sender to be ready, or
-                            // notify error.
-                            new_client_sender.try_send((fake_socket_address, channel.clone()));
+                        let signalling_socket_clone_2 = signalling_socket_clone.clone();
+                        let peer_clone = peer.clone();
+                        let remote_desc_success_func: Box<dyn FnMut(JsValue)> = Box::new(
+                            move |_| {
+                                //web_sys::console::log_1(
+                                //    &"successfully set remote description".into(),
+                                //);
+                                let signalling_socket_clone_3 = signalling_socket_clone_2.clone();
+                                let peer_clone_2 = peer_clone.clone();
+                                let peer_answer_func: Box<dyn FnMut(JsValue)> = Box::new(
+                                    move |session_description: JsValue| {
+                                        //web_sys::console::log_1(&"generated answer".into());
+                                        let local_session_description = session_description
+                                            .dyn_into::<RtcSessionDescription>()
+                                            .unwrap();
 
-                            let cloned_channel = channel.clone();
-                            let from_client_sender_clone = from_client_sender.clone();
-                            let channel_onopen_func: Box<dyn FnMut(JsValue)> =
-                                Box::new(move |_| {
-                                    let mut from_client_sender_clone_2 =
-                                        from_client_sender_clone.clone();
-                                    let channel_onmsg_func: Box<dyn FnMut(MessageEvent)> =
-                                        Box::new(move |evt: MessageEvent| {
-                                            if let Ok(arraybuf) =
-                                                evt.data().dyn_into::<js_sys::ArrayBuffer>()
-                                            {
-                                                let uarray: js_sys::Uint8Array =
-                                                    js_sys::Uint8Array::new(&arraybuf);
-                                                let mut body = vec![0; uarray.length() as usize];
-                                                uarray.copy_to(&mut body[..]);
-                                                from_client_sender_clone_2.try_send(Ok(
-                                                    Packet::new(fake_socket_address, body),
+                                        let signalling_socket_clone_4 =
+                                            signalling_socket_clone_3.clone();
+                                        let peer_clone_3 = peer_clone_2.clone();
+                                        let local_desc_success_func: Box<dyn FnMut(JsValue)> =
+                                            Box::new(move |_| {
+                                                //web_sys::console::log_1(
+                                                //    &"successfully set local description".into(),
+                                                //);
+                                                let signalling_socket_clone_5 =
+                                                    signalling_socket_clone_4.clone();
+                                                let peer_clone_4 = peer_clone_3.clone();
+                                                let ice_candidate_func: Box<
+                                                    dyn FnMut(RtcPeerConnectionIceEvent),
+                                                > = Box::new(
+                                                    move |event: RtcPeerConnectionIceEvent| {
+                                                        // web_sys::console::log_1(
+                                                        //     &"Found new ice candidate".into(),
+                                                        // );
+                                                        // null candidate represents end-of-candidates.
+                                                        // TODO: do we need to deregister handler?
+                                                        if event.candidate().is_none() {
+                                                            // web_sys::console::log_1(&"Found all ice candidates - sending answer".into());
+                                                            let answer_sdp_string = peer_clone_4
+                                                                .local_description()
+                                                                .unwrap()
+                                                                .sdp();
+                                                            signalling_socket_clone_5
+                                                                .send_with_str(
+                                                                    answer_sdp_string.as_str(),
+                                                                );
+                                                        }
+                                                    },
+                                                );
+                                                let ice_candidate_callback =
+                                                    Closure::wrap(ice_candidate_func);
+                                                peer_clone_3.set_onicecandidate(Some(
+                                                    ice_candidate_callback.as_ref().unchecked_ref(),
                                                 ));
-                                            }
-                                        });
-                                    let channel_onmsg_closure = Closure::wrap(channel_onmsg_func);
+                                                ice_candidate_callback.forget();
+                                            });
+                                        let local_desc_success_callback =
+                                            Closure::wrap(local_desc_success_func);
 
-                                    cloned_channel.set_onmessage(Some(
-                                        channel_onmsg_closure.as_ref().unchecked_ref(),
-                                    ));
-                                    channel_onmsg_closure.forget();
-                                });
-                            let channel_onopen_closure = Closure::wrap(channel_onopen_func);
-                            channel
-                                .set_onopen(Some(channel_onopen_closure.as_ref().unchecked_ref()));
-                            channel_onopen_closure.forget();
-
-                            let onerror_func: Box<dyn FnMut(ErrorEvent)> =
-                                Box::new(move |e: ErrorEvent| {
-                                    info!("data channel error event: {:?}", e);
-                                });
-                            let onerror_callback = Closure::wrap(onerror_func);
-                            channel.set_onerror(Some(onerror_callback.as_ref().unchecked_ref()));
-                            onerror_callback.forget();
-
-                            let signalling_socket_clone_2 = signalling_socket_clone.clone();
-                            let peer_clone = peer.clone();
-                            let remote_desc_success_func: Box<dyn FnMut(JsValue)> = Box::new(
-                                move |_| {
-                                    let signalling_socket_clone_3 =
-                                        signalling_socket_clone_2.clone();
-                                    let peer_clone_2 = peer_clone.clone();
-                                    let peer_answer_func: Box<dyn FnMut(JsValue)> = Box::new(
-                                        move |session_description: JsValue| {
-                                            let local_session_description = session_description
-                                                .dyn_into::<RtcSessionDescription>()
-                                                .unwrap();
-
-                                            let signalling_socket_clone_4 =
-                                                signalling_socket_clone_3.clone();
-                                            let peer_clone_3 = peer_clone_2.clone();
-                                            let local_desc_success_func: Box<dyn FnMut(JsValue)> =
-                                                Box::new(move |_| {
-                                                    let signalling_socket_clone_5 =
-                                                        signalling_socket_clone_4.clone();
-                                                    let peer_clone_4 = peer_clone_3.clone();
-                                                    let ice_candidate_func: Box<
-                                                        dyn FnMut(RtcPeerConnectionIceEvent),
-                                                    > = Box::new(
-                                                        move |event: RtcPeerConnectionIceEvent| {
-                                                            // null candidate represents end-of-candidates.
-                                                            if event.candidate().is_none() {
-                                                                let answer_sdp_string =
-                                                                    peer_clone_4
-                                                                        .local_description()
-                                                                        .unwrap()
-                                                                        .sdp();
-                                                                signalling_socket_clone_5
-                                                                    .send_with_str(
-                                                                        answer_sdp_string.as_str(),
-                                                                    );
-                                                            }
-                                                        },
-                                                    );
-                                                    let ice_candidate_callback =
-                                                        Closure::wrap(ice_candidate_func);
-                                                    peer_clone_3.set_onicecandidate(Some(
-                                                        ice_candidate_callback
-                                                            .as_ref()
-                                                            .unchecked_ref(),
-                                                    ));
-                                                    ice_candidate_callback.forget();
-                                                });
-                                            let local_desc_success_callback =
-                                                Closure::wrap(local_desc_success_func);
-
-                                            let mut session_description_init: RtcSessionDescriptionInit =
+                                        let mut session_description_init: RtcSessionDescriptionInit =
                                         RtcSessionDescriptionInit::new(
                                             local_session_description.type_(),
                                         );
-                                            session_description_init
-                                                .sdp(local_session_description.sdp().as_str());
-                                            peer_clone_2
-                                                .set_local_description(&session_description_init)
-                                                .then(&local_desc_success_callback);
-                                            local_desc_success_callback.forget();
-                                        },
-                                    );
-                                    let peer_answer_callback = Closure::wrap(peer_answer_func);
+                                        session_description_init
+                                            .sdp(local_session_description.sdp().as_str());
+                                        peer_clone_2
+                                            .set_local_description(&session_description_init)
+                                            .then(&local_desc_success_callback);
+                                        local_desc_success_callback.forget();
+                                    },
+                                );
+                                let peer_answer_callback = Closure::wrap(peer_answer_func);
 
-                                    peer_clone.create_answer().then(&peer_answer_callback);
-                                    peer_answer_callback.forget();
-                                },
-                            );
-                            let remote_desc_success_callback =
-                                Closure::wrap(remote_desc_success_func);
+                                peer_clone.create_answer().then(&peer_answer_callback);
+                                peer_answer_callback.forget();
+                            },
+                        );
+                        let remote_desc_success_callback = Closure::wrap(remote_desc_success_func);
 
-                            let remote_desc_failure_func: Box<dyn FnMut(JsValue)> = Box::new(
-                                move |_: JsValue| {
-                                    info!(
+                        let remote_desc_failure_func: Box<dyn FnMut(JsValue)> = Box::new(
+                            move |_: JsValue| {
+                                info!(
                                     "Server error during 'setRemoteDescription': TODO, put value here"
                                 );
-                                },
-                            );
-                            let remote_desc_failure_callback =
-                                Closure::wrap(remote_desc_failure_func);
+                            },
+                        );
+                        let remote_desc_failure_callback = Closure::wrap(remote_desc_failure_func);
 
-                            let mut rtc_session_desc_init_dict: RtcSessionDescriptionInit =
-                                RtcSessionDescriptionInit::new(RtcSdpType::Offer);
+                        let mut rtc_session_desc_init_dict: RtcSessionDescriptionInit =
+                            RtcSessionDescriptionInit::new(RtcSdpType::Offer);
 
-                            rtc_session_desc_init_dict
-                                .sdp(offer_sdp_string.as_string().unwrap().as_str());
+                        rtc_session_desc_init_dict
+                            .sdp(offer_sdp_string.as_string().unwrap().as_str());
 
-                            peer.set_remote_description_with_success_callback_and_failure_callback(
-                                &rtc_session_desc_init_dict,
-                                remote_desc_success_callback.as_ref().unchecked_ref(),
-                                remote_desc_failure_callback.as_ref().unchecked_ref(),
-                            );
-                            remote_desc_success_callback.forget();
-                            remote_desc_failure_callback.forget();
+                        peer.set_remote_description_with_success_callback_and_failure_callback(
+                            &rtc_session_desc_init_dict,
+                            remote_desc_success_callback.as_ref().unchecked_ref(),
+                            remote_desc_failure_callback.as_ref().unchecked_ref(),
+                        );
+                        remote_desc_success_callback.forget();
+                        remote_desc_failure_callback.forget();
+                    }
+                },
+            );
+            let signalling_socket_onmessage_closure =
+                Closure::wrap(signalling_socket_onmessage_func);
+            signalling_socket.set_onmessage(Some(
+                signalling_socket_onmessage_closure.as_ref().unchecked_ref(),
+            ));
+            signalling_socket_onmessage_closure.forget();
+
+            // TODO: WebSocket error and disconnection handling.
+
+            enum Next {
+                NewClientMessage((SocketAddr, RtcDataChannel)),
+                ToClientMessage(Packet),
+            }
+            loop {
+                let next = {
+                    let to_client_receiver_next = to_client_receiver.next().fuse();
+                    pin_mut!(to_client_receiver_next);
+
+                    let new_client_message_receiver_next = new_client_receiver.next().fuse();
+                    pin_mut!(new_client_message_receiver_next);
+
+                    select! {
+                        new_client_result = new_client_message_receiver_next => {
+                            Next::NewClientMessage(new_client_result.expect("new client message receiver closed"))
                         }
-                    },
-                );
-                let signalling_socket_onmessage_closure =
-                    Closure::wrap(signalling_socket_onmessage_func);
-                signalling_socket.set_onmessage(Some(
-                    signalling_socket_onmessage_closure.as_ref().unchecked_ref(),
-                ));
-                signalling_socket_onmessage_closure.forget();
-
-                // TODO: WebSocket error and disconnection handling.
-
-                enum Next {
-                    NewClientMessage((SocketAddr, RtcDataChannel)),
-                    ToClientMessage(Packet),
-                }
-                loop {
-                    let next = {
-                        let to_client_receiver_next = to_client_receiver.next().fuse();
-                        pin_mut!(to_client_receiver_next);
-
-                        let new_client_message_receiver_next = new_client_receiver.next().fuse();
-                        pin_mut!(new_client_message_receiver_next);
-
-                        select! {
-                            new_client_result = new_client_message_receiver_next => {
-                                Next::NewClientMessage(new_client_result.expect("new client message receiver closed"))
-                            }
-                            to_client_message = to_client_receiver_next => {
-                                Next::ToClientMessage(
-                                    to_client_message.expect("to client message receiver closed")
-                                )
-                            }
-                        }
-                    };
-
-                    match next {
-                        Next::NewClientMessage((socket_address, data_channel)) => {
-                            clients.insert(socket_address, data_channel);
-                        }
-                        Next::ToClientMessage(packet) => {
-                            clients
-                                .get(&packet.address())
-                                .unwrap()
-                                .send_with_u8_array(&packet.payload())
-                                .unwrap();
+                        to_client_message = to_client_receiver_next => {
+                            Next::ToClientMessage(
+                                to_client_message.expect("to client message receiver closed")
+                            )
                         }
                     }
+                };
+
+                match next {
+                    Next::NewClientMessage((socket_address, data_channel)) => {
+                        clients.insert(socket_address, data_channel);
+                    }
+                    Next::ToClientMessage(packet) => {
+                        // web_sys::console::log_1(
+                        //     &"Send data of length {}".into(),
+                        //     //&packet.payload().len().into(),
+                        // );
+                        clients
+                            .get(&packet.address())
+                            .unwrap()
+                            .send_with_u8_array(&packet.payload())
+                            .unwrap();
+                    }
                 }
-            });
+            }
         });
+        //});
 
         let socket = ServerSocket {
             to_client_sender,

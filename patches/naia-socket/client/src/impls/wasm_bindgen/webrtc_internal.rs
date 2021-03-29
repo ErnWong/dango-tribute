@@ -61,6 +61,8 @@ pub fn webrtc_initialize(
     let mut data_channel_config: RtcDataChannelInit = RtcDataChannelInit::new();
     data_channel_config.ordered(false);
     data_channel_config.max_retransmits(0);
+    data_channel_config.negotiated(true);
+    data_channel_config.id(0);
 
     let channel: RtcDataChannel =
         peer.create_data_channel_with_data_channel_dict("webudp", &data_channel_config);
@@ -72,7 +74,9 @@ pub fn webrtc_initialize(
         let msg_queue_clone_2 = msg_queue_clone.clone();
         let channel_onmsg_func: Box<dyn FnMut(MessageEvent)> =
             Box::new(move |evt: MessageEvent| {
+                //web_sys::console::log_1(&"Rtc channel onmessage".into());
                 if let Ok(arraybuf) = evt.data().dyn_into::<js_sys::ArrayBuffer>() {
+                    //web_sys::console::log_1(&"received data".into());
                     let uarray: js_sys::Uint8Array = js_sys::Uint8Array::new(&arraybuf);
                     let mut body = vec![0; uarray.length() as usize];
                     uarray.copy_to(&mut body[..]);
@@ -100,16 +104,21 @@ pub fn webrtc_initialize(
     let peer_clone = peer.clone();
     let server_url_msg = Ref::new(server_url_str);
     let peer_offer_func: Box<dyn FnMut(JsValue)> = Box::new(move |e: JsValue| {
+        //web_sys::console::log_1(&"created offer".into());
         let session_description = e.dyn_into::<RtcSessionDescription>().unwrap();
         let peer_clone_2 = peer_clone.clone();
         let server_url_msg_clone = server_url_msg.clone();
         let peer_desc_func: Box<dyn FnMut(JsValue)> = Box::new(move |_: JsValue| {
+            //web_sys::console::log_1(
+            //    &"set local description done, waiting for ice candidates...".into(),
+            //);
             let peer_clone_3 = peer_clone_2.clone();
             let server_url_msg_clone_1 = server_url_msg_clone.clone();
             let ice_candidate_func: Box<dyn FnMut(RtcPeerConnectionIceEvent)> = Box::new(
                 move |event: RtcPeerConnectionIceEvent| {
                     // null candidate represents end-of-candidates.
                     if event.candidate().is_none() {
+                        //web_sys::console::log_1(&"got all candidates - sending offer".into());
                         let request =
                             XmlHttpRequest::new().expect("can't create new XmlHttpRequest");
 
@@ -127,6 +136,7 @@ pub fn webrtc_initialize(
                         let request_func: Box<dyn FnMut(ProgressEvent)> = Box::new(
                             move |_: ProgressEvent| {
                                 if request_2.status().unwrap() == 200 {
+                                    //web_sys::console::log_1(&"got answer".into());
                                     let answer_sdp_string =
                                         request_2.response_text().unwrap().unwrap();
 
