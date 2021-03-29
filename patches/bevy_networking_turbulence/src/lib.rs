@@ -33,6 +33,8 @@ pub use turbulence::{
     reliable_channel::Settings as ReliableChannelSettings,
 };
 
+use wasm_bindgen_futures::spawn_local;
+
 mod channels;
 mod transport;
 use self::channels::{SimpleBufferPool, TaskPoolRuntime};
@@ -71,7 +73,7 @@ pub struct NetworkResource {
     pub connections: HashMap<ConnectionHandle, Box<dyn Connection>>,
 
     // #[cfg(not(target_arch = "wasm32"))]
-    listeners: Vec<ServerListener>,
+    listeners: Arc<Mutex<Vec<ServerListener>>>,
     // #[cfg(not(target_arch = "wasm32"))]
     server_channels: Arc<RwLock<HashMap<SocketAddr, Sender<Packet>>>>,
 
@@ -115,7 +117,7 @@ impl NetworkResource {
             connection_sequence: atomic::AtomicU32::new(0),
             pending_connections: Arc::new(Mutex::new(Vec::new())),
             // #[cfg(not(target_arch = "wasm32"))]
-            listeners: Vec::new(),
+            listeners: Arc::new(Mutex::new(Vec::new())),
             // #[cfg(not(target_arch = "wasm32"))]
             server_channels: Arc::new(RwLock::new(HashMap::new())),
             runtime,
@@ -127,78 +129,86 @@ impl NetworkResource {
     }
 
     pub fn listen(&mut self, signalling_server_url: String) {
-        let mut server_socket = {
-            let socket =
-                futures_lite::future::block_on(ServerSocket::listen(signalling_server_url));
-
-            if let Some(ref conditioner) = self.link_conditioner {
-                socket.with_link_conditioner(conditioner)
-            } else {
-                socket
-            }
-        };
-        let sender = server_socket.get_sender();
         let server_channels = self.server_channels.clone();
         let pending_connections = self.pending_connections.clone();
         let task_pool = self.task_pool.clone();
+        let listeners = self.listeners.clone();
 
-        let receiver_task = self.task_pool.spawn(async move {
-            loop {
-                match server_socket.receive().await {
-                    Ok(packet) => {
-                        let address = packet.address();
-                        let message = String::from_utf8_lossy(packet.payload());
-                        log::debug!(
-                            "Server recv <- {}:{}: {}",
-                            address,
-                            packet.payload().len(),
-                            message
-                        );
+        let link_conditioner = self.link_conditioner.take(); // TODO: take or clone? Maybe clone.
 
-                        match server_channels.write() {
-                            Ok(mut server_channels) => {
-                                if !server_channels.contains_key(&address) {
-                                    let (packet_tx, packet_rx): (Sender<Packet>, Receiver<Packet>) =
-                                        unbounded();
-                                    pending_connections.lock().unwrap().push(Box::new(
-                                        transport::ServerConnection::new(
-                                            task_pool.clone(),
-                                            packet_rx,
-                                            server_socket.get_sender(),
-                                            address,
-                                        ),
-                                    ));
-                                    server_channels.insert(address, packet_tx);
+        spawn_local(async move {
+            let mut server_socket = {
+                let socket = ServerSocket::listen(signalling_server_url).await;
+
+                if let Some(ref conditioner) = link_conditioner {
+                    socket.with_link_conditioner(conditioner)
+                } else {
+                    socket
+                }
+            };
+            let sender = server_socket.get_sender();
+
+            let task_pool_clone = task_pool.clone();
+            let receiver_task = task_pool.spawn(async move {
+                loop {
+                    match server_socket.receive().await {
+                        Ok(packet) => {
+                            let address = packet.address();
+                            let message = String::from_utf8_lossy(packet.payload());
+                            log::debug!(
+                                "Server recv <- {}:{}: {}",
+                                address,
+                                packet.payload().len(),
+                                message
+                            );
+
+                            match server_channels.write() {
+                                Ok(mut server_channels) => {
+                                    if !server_channels.contains_key(&address) {
+                                        let (packet_tx, packet_rx): (
+                                            Sender<Packet>,
+                                            Receiver<Packet>,
+                                        ) = unbounded();
+                                        pending_connections.lock().unwrap().push(Box::new(
+                                            transport::ServerConnection::new(
+                                                task_pool_clone.clone(),
+                                                packet_rx,
+                                                server_socket.get_sender(),
+                                                address,
+                                            ),
+                                        ));
+                                        server_channels.insert(address, packet_tx);
+                                    }
+                                }
+                                Err(err) => {
+                                    log::error!("Error locking server channels: {}", err);
                                 }
                             }
-                            Err(err) => {
-                                log::error!("Error locking server channels: {}", err);
-                            }
-                        }
 
-                        match server_channels
-                            .read()
-                            .unwrap()
-                            .get(&address)
-                            .unwrap()
-                            .send(Packet::copy_from_slice(packet.payload()))
-                        {
-                            Ok(()) => {}
-                            Err(error) => {
-                                log::error!("Server Send Error: {}", error);
+                            match server_channels
+                                .read()
+                                .unwrap()
+                                .get(&address)
+                                .unwrap()
+                                .send(Packet::copy_from_slice(packet.payload()))
+                            {
+                                Ok(()) => {}
+                                Err(error) => {
+                                    log::error!("Server Send Error: {}", error);
+                                }
                             }
                         }
-                    }
-                    Err(error) => {
-                        log::error!("Server Receive Error: {}", error);
+                        Err(error) => {
+                            log::error!("Server Receive Error: {}", error);
+                        }
                     }
                 }
-            }
-        });
+            });
 
-        self.listeners.push(ServerListener {
-            //receiver_task,
-            sender,
+            listeners.lock().unwrap().push(ServerListener {
+                //receiver_task,
+                sender,
+            });
         });
     }
 
