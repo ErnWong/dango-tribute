@@ -1,7 +1,9 @@
 use actix::prelude::*;
+use actix_cors::Cors;
 use actix_web::{
-    error, get, http::StatusCode, post, web, App, Error, HttpRequest, HttpResponse, HttpServer,
-    Responder, Result,
+    error, get,
+    http::{header, StatusCode},
+    post, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder, Result,
 };
 use actix_web_actors::ws;
 use std::{
@@ -12,7 +14,7 @@ use tokio::sync::oneshot;
 
 mod test;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct RoomHost {
     answer_queue: VecDeque<oneshot::Sender<String>>,
 }
@@ -70,6 +72,8 @@ async fn join(
     room_hosts: web::Data<Mutex<HashMap<String, Addr<RoomHost>>>>,
 ) -> impl Responder {
     let id = req.match_info().query("id");
+    println!("Joining id: {:?}", id);
+    println!("room_hosts = {:?}", room_hosts);
     let room_hosts_locked = room_hosts.lock().unwrap();
     if let Some(room_host) = room_hosts_locked.get(id) {
         let answer = room_host.send(Offer(offer)).await;
@@ -93,16 +97,25 @@ async fn host(
     room_hosts: web::Data<Mutex<HashMap<String, Addr<RoomHost>>>>,
 ) -> Result<HttpResponse, Error> {
     let (addr, resp) = ws::start_with_addr(RoomHost::default(), &req, stream)?;
-    let id = nanoid::simple();
+    //let id = nanoid::simple(); // TODO
+    let id = "1234".to_string();
+    println!("Hosting id: {:?}", id);
     room_hosts.lock().unwrap().insert(id, addr);
+    println!("room_hosts = {:?}", room_hosts);
     Ok(resp)
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| {
-        let room_hosts = web::Data::new(Mutex::new(HashMap::<String, Addr<RoomHost>>::new()));
+    let room_hosts = web::Data::new(Mutex::new(HashMap::<String, Addr<RoomHost>>::new()));
+    HttpServer::new(move || {
         App::new()
+            .wrap(
+                Cors::default()
+                    .allow_any_origin()
+                    .allow_any_method()
+                    .allow_any_header(),
+            )
             .app_data(room_hosts.clone())
             .service(join)
             .service(host)
