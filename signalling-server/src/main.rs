@@ -4,7 +4,10 @@ use actix_web::{
     get, post, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder, Result,
 };
 use actix_web_actors::ws;
-use std::collections::{HashMap, VecDeque};
+use std::{
+    collections::{HashMap, VecDeque},
+    net::SocketAddr,
+};
 use tokio::sync::oneshot;
 
 mod test;
@@ -158,6 +161,12 @@ async fn host(
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let room_registry_address = RoomRegistry::default().start();
+
+    let socket_address = SocketAddr::from((
+        [0, 0, 0, 0],
+        std::env::var("PORT").map_or(8080, |port| port.parse().unwrap()),
+    ));
+
     HttpServer::new(move || {
         App::new()
             .wrap(
@@ -170,7 +179,7 @@ async fn main() -> std::io::Result<()> {
             .service(join)
             .service(host)
     })
-    .bind("192.168.1.9:8080")?
+    .bind(socket_address)?
     .run()
     .await
 }
