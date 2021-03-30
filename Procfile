@@ -1,1 +1,1 @@
-web: ./target/release/signalling_server
+web: ./target/release/signalling-server
