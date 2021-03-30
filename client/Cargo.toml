@@ -22,6 +22,9 @@ native = [
 ]
 web = [
   "bevy_webgl2",
+  "web-sys/Window",
+  "web-sys/UrlSearchParams",
+  "web-sys/Location",
 ]
 dynamic = [
   "bevy/dynamic",
@@ -41,3 +44,5 @@ bevy_prototype_networked_physics = {path = "../crates/bevy_prototype_networked_p
 bevy_prototype_transform_tracker = {path = "../crates/bevy_prototype_transform_tracker"}
 rand = "0.8.3"
 winit = "0.24.0"
+wasm-bindgen = "0.2.45"
+web-sys = "0.3.22"

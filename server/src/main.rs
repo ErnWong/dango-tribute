@@ -3,10 +3,11 @@ use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, PrintDiagnosticsPlugin},
     prelude::*,
 };
-use bevy_prototype_networked_physics::NetworkedPhysicsServerPlugin;
+use bevy_prototype_networked_physics::{net::NetworkEvent, NetworkedPhysicsServerPlugin};
 use bevy_prototype_transform_tracker::TransformTrackingFollower;
 use shared::{physics_multiplayer::PhysicsWorld, physics_multiplayer_systems, settings};
 use std::time::Duration;
+use wasm_bindgen::prelude::*;
 
 // const SHOW_DEBUG_WINDOW: bool = false;
 
@@ -51,6 +52,7 @@ fn main() {
 
     app.add_plugin(NetworkedPhysicsServerPlugin::<PhysicsWorld>::new(
         settings::NETWORKED_PHYSICS_CONFIG,
+        "ws://192.168.1.9:8080/host".to_string(),
     ));
 
     // Order is important.
@@ -58,6 +60,7 @@ fn main() {
 
     app.add_plugin(FrameTimeDiagnosticsPlugin::default())
         //.add_plugin(PrintDiagnosticsPlugin::default())
+        .add_system(show_shareable_url_system.system())
         .add_system(
             physics_multiplayer_systems::physics_multiplayer_server_despawn_system.system(),
         );
@@ -87,4 +90,35 @@ fn debug_window_setup(commands: &mut Commands) {
             ..Default::default()
         })
         .with(TransformTrackingFollower);
+}
+
+#[derive(Default)]
+pub struct ShowHostIdState {
+    network_event_reader: EventReader<NetworkEvent>,
+}
+
+fn show_shareable_url_system(
+    mut state: Local<ShowHostIdState>,
+    network_events: Res<Events<NetworkEvent>>,
+) {
+    for network_event in state.network_event_reader.iter(&network_events) {
+        if let NetworkEvent::Hosted(endpoint_id) = network_event {
+            info!("Found endpoint id");
+            let url = format!("http://192.168.1.9:9002/?join={}", endpoint_id);
+            let document = web_sys::window()
+                .expect("should have global window")
+                .document()
+                .expect("window should have document");
+            document
+                .get_element_by_id("join-url")
+                .expect("join-url input should exist")
+                .set_attribute("value", &url)
+                .expect("setting value attribute should succeed");
+            document
+                .get_element_by_id("client-iframe")
+                .expect("client iframe should exist")
+                .set_attribute("src", &url)
+                .expect("setting src attribute should succeed");
+        }
+    }
 }

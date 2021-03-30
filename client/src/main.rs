@@ -5,6 +5,8 @@ use bevy::{
 };
 use bevy_kira_audio::{Audio, AudioPlugin};
 use bevy_web_fullscreen::FullViewportPlugin;
+use wasm_bindgen::prelude::*;
+use web_sys::UrlSearchParams;
 
 use bevy_prototype_frameshader::FrameshaderPlugin;
 use bevy_prototype_networked_physics::NetworkedPhysicsClientPlugin;
@@ -84,8 +86,22 @@ fn main() {
     #[cfg(feature = "web")]
     app.add_plugin(FullViewportPlugin);
 
+    let host_id = UrlSearchParams::new_with_str(
+        &web_sys::window()
+            .expect("should have global window")
+            .location()
+            .search()
+            .expect("should have search string"),
+    )
+    .expect("should parse valid search params")
+    .get("join")
+    .expect("should have host id");
+
+    let endpoint_url = format!("http://192.168.1.9:8080/join/{}", host_id);
+
     app.add_plugin(NetworkedPhysicsClientPlugin::<PhysicsWorld>::new(
         settings::NETWORKED_PHYSICS_CONFIG,
+        endpoint_url,
     ));
 
     // Order is important.

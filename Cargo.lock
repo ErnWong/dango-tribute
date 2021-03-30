@@ -1506,6 +1506,8 @@ dependencies = [
  "bevy_webgl2",
  "rand 0.8.3",
  "shared",
+ "wasm-bindgen",
+ "web-sys",
  "winit",
 ]
 
@@ -4388,6 +4390,8 @@ dependencies = [
  "bevy_prototype_networked_physics",
  "bevy_prototype_transform_tracker",
  "shared",
+ "wasm-bindgen",
+ "web-sys",
  "winit",
 ]
 
