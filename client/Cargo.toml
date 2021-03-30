@@ -15,7 +15,7 @@ default = [
   "bevy/render",
   "bevy/png",
   "bevy_prototype_networked_physics/use-webrtc",
-  "bevy_kira_audio/wav"
+  "bevy_kira_audio/ogg"
 ]
 native = [
   "bevy/bevy_wgpu",

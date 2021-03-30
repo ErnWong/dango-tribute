@@ -140,7 +140,7 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let bgm = asset_server.load("soundtracks/untitled.wav");
+    let bgm = asset_server.load("soundtracks/untitled.ogg");
     audio.play_looped(bgm);
 
     commands
