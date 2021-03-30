@@ -12,11 +12,15 @@ use std::{
     collections::HashMap,
     io::Error as IoError,
     net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex,
+    },
 };
 
 use async_trait::async_trait;
 
-use futures_channel::mpsc;
+use futures_channel::{mpsc, oneshot};
 use futures_util::{pin_mut, select, FutureExt, StreamExt};
 
 use naia_socket_shared::LinkConditionerConfig;
@@ -56,12 +60,14 @@ pub struct ServerSocket {
 
 impl ServerSocket {
     /// TODO
-    pub async fn listen(signalling_server_url: String) -> Box<dyn ServerSocketTrait> {
+    pub async fn listen(signalling_server_url: String) -> (String, Box<dyn ServerSocketTrait>) {
         //web_sys::console::log_1(&"Server listening to new WebRTC connections...".into());
 
         let (to_client_sender, mut to_client_receiver) =
             mpsc::channel::<Packet>(CLIENT_CHANNEL_SIZE);
         let (from_client_sender, from_client_receiver) = mpsc::channel(CLIENT_CHANNEL_SIZE);
+
+        let (endpoint_id_sender, mut endpoint_id_receiver) = mpsc::channel::<String>(1);
 
         //let evil = std::thread::spawn(move || {
         spawn_local(async move {
@@ -72,9 +78,25 @@ impl ServerSocket {
 
             //web_sys::console::log_1(&"Waiting for connections via websocket relay...".into());
             let signalling_socket_clone = signalling_socket.clone();
+            let mut endpoint_id_sender_clone = endpoint_id_sender.clone();
+            let is_first_message = AtomicBool::new(true);
             let signalling_socket_onmessage_func: Box<dyn FnMut(MessageEvent)> = Box::new(
                 move |event: MessageEvent| {
-                    if let Ok(offer_sdp_string) = event.data().dyn_into::<js_sys::JsString>() {
+                    if let Ok(websocket_message_string) =
+                        event.data().dyn_into::<js_sys::JsString>()
+                    {
+                        // TODO: We might be able to relax some of the ordering.
+                        if is_first_message.compare_exchange(
+                            true,
+                            false,
+                            Ordering::SeqCst,
+                            Ordering::SeqCst,
+                        ) == Ok(true)
+                        {
+                            endpoint_id_sender_clone.try_send(websocket_message_string.into());
+                            return;
+                        }
+                        let offer_sdp_string = websocket_message_string;
                         // web_sys::console::log_1(
                         //     &"Got an offer string - creating rtc channel".into(),
                         // );
@@ -320,7 +342,7 @@ impl ServerSocket {
             to_client_sender,
             from_client_receiver,
         };
-        Box::new(socket)
+        (endpoint_id_receiver.next().await.unwrap(), Box::new(socket))
     }
 }
 
