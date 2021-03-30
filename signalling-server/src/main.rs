@@ -7,10 +7,14 @@ use actix_web_actors::ws;
 use std::{
     collections::{HashMap, VecDeque},
     net::SocketAddr,
+    time::{Duration, Instant},
 };
 use tokio::sync::oneshot;
 
 mod test;
+
+const HOST_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
+const HOST_TIMEOUT: Duration = Duration::from_secs(20);
 
 #[derive(Default, Debug)]
 struct RoomRegistry {
@@ -62,6 +66,7 @@ struct RoomHost {
     answer_queue: VecDeque<oneshot::Sender<String>>,
     id: String,
     registry_address: Addr<RoomRegistry>,
+    last_received_heartbeat: Instant,
 }
 
 #[derive(Message)]
@@ -74,6 +79,7 @@ impl RoomHost {
             answer_queue: Default::default(),
             id: nanoid::simple(),
             registry_address,
+            last_received_heartbeat: Instant::now(),
         }
     }
 }
@@ -88,6 +94,13 @@ impl Actor for RoomHost {
         // TODO: error handling
         println!("Room opened");
         ctx.text(self.id.clone());
+
+        ctx.run_interval(HOST_HEARTBEAT_INTERVAL, |act, ctx| {
+            if Instant::now().duration_since(act.last_received_heartbeat) > HOST_TIMEOUT {
+                ctx.stop();
+            }
+            ctx.ping(b"");
+        });
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
@@ -112,9 +125,18 @@ impl Handler<Offer> for RoomHost {
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for RoomHost {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
-            Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
+            Ok(ws::Message::Ping(msg)) => {
+                self.last_received_heartbeat = Instant::now();
+                ctx.pong(&msg)
+            }
+            Ok(ws::Message::Pong(_)) => {
+                self.last_received_heartbeat = Instant::now();
+            }
             Ok(ws::Message::Text(answer)) => {
                 self.answer_queue.pop_front().unwrap().send(answer);
+            }
+            Err(_) => {
+                ctx.stop();
             }
             _ => (),
         }
