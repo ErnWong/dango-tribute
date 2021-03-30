@@ -82,6 +82,8 @@ pub struct NetworkResource {
     channels_builder_fn: Option<Box<dyn Fn(&mut ConnectionChannelsBuilder) + Send + Sync>>,
 
     link_conditioner: Option<LinkConditionerConfig>,
+
+    endpoint_id: Arc<Mutex<Option<String>>>,
 }
 
 // #[cfg(not(target_arch = "wasm32"))]
@@ -97,6 +99,7 @@ pub enum NetworkEvent {
     Connected(ConnectionHandle),
     Disconnected(ConnectionHandle),
     Packet(ConnectionHandle, Packet),
+    Hosted(String),
     // Error(NetworkError),
 }
 
@@ -125,6 +128,7 @@ impl NetworkResource {
             channels_builder_fn: None,
 
             link_conditioner,
+            endpoint_id: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -133,12 +137,14 @@ impl NetworkResource {
         let pending_connections = self.pending_connections.clone();
         let task_pool = self.task_pool.clone();
         let listeners = self.listeners.clone();
+        let endpoint_id = self.endpoint_id.clone();
 
-        let link_conditioner = self.link_conditioner.take(); // TODO: take or clone? Maybe clone.
+        let link_conditioner = self.link_conditioner.take();
 
         spawn_local(async move {
             let mut server_socket = {
-                let socket = ServerSocket::listen(signalling_server_url).await;
+                let (id, socket) = ServerSocket::listen(signalling_server_url).await;
+                endpoint_id.lock().unwrap().replace(id);
 
                 if let Some(ref conditioner) = link_conditioner {
                     socket.with_link_conditioner(conditioner)
@@ -312,6 +318,10 @@ pub fn receive_packets(
     mut net: ResMut<NetworkResource>,
     mut network_events: ResMut<Events<NetworkEvent>>,
 ) {
+    if let Some(endpoint_id) = net.endpoint_id.lock().unwrap().take() {
+        network_events.send(NetworkEvent::Hosted(endpoint_id));
+    }
+
     let pending_connections: Vec<Box<dyn Connection>> =
         net.pending_connections.lock().unwrap().drain(..).collect();
     for mut conn in pending_connections {
