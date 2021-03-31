@@ -36,6 +36,7 @@ jobs:
                       client/index.html
                       client/target/wasm.js
                       client/target/wasm_bg.wasm
+                      client/assets/
     build-server:
         name: build-server
         runs-on: ubuntu-latest
