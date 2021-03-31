@@ -19,9 +19,9 @@ jobs:
             run:
                 working-directory: ./client
         steps:
+            - uses: actions/checkout@v2
             - uses: actions-rs/toolchain@v1
             - uses: davidB/rust-cargo-make@v1
-            - uses: actions/checkout@v2
             - run: cargo make build-web --profile release
             - uses: actions/upload-artifact@v2
               with:
@@ -37,9 +37,9 @@ jobs:
             run:
                 working-directory: ./server
         steps:
+            - uses: actions/checkout@v2
             - uses: actions-rs/toolchain@v1
             - uses: davidB/rust-cargo-make@v1
-            - uses: actions/checkout@v2
             - run: cargo make build-web --profile release
             - uses: actions/upload-artifact@v1
               with:
