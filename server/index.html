@@ -8,6 +8,7 @@
         height: 100%;
         display: flex;
         flex-direction: column;
+        justify-content: center;
       }
       body > iframe {
         flex: 1;
@@ -30,9 +31,9 @@
   <body>
     <p>
       Others can join your server using this link:
-      <input readonly id="join-url" onclick="this.select()">
+      <input readonly id="join-url" onclick="this.select()" placeholder="Generating link...">
     </p>
-    <iframe title="game" id="client-iframe"></iframe>
+    <!--<iframe title="game" id="client-iframe"></iframe>-->
   </body>
   <script type="module">
     import init from './target/wasm.js';

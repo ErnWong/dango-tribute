@@ -123,11 +123,12 @@ fn show_shareable_url_system(
                 .expect("join-url input should exist")
                 .set_attribute("value", &absolute_url)
                 .expect("setting value attribute should succeed");
-            document
-                .get_element_by_id("client-iframe")
-                .expect("client iframe should exist")
-                .set_attribute("src", &absolute_url)
-                .expect("setting src attribute should succeed");
+            // There seems to be severe performance problems running the client in the same tab...
+            // document
+            //     .get_element_by_id("client-iframe")
+            //     .expect("client iframe should exist")
+            //     .set_attribute("src", &absolute_url)
+            //     .expect("setting src attribute should succeed");
         }
     }
 }
