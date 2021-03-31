@@ -21,6 +21,8 @@ web = [
   "web-sys/HtmlElement",
   "web-sys/Node",
   "web-sys/Window",
+  "web-sys/Url",
+  "web-sys/Location",
 ]
 native = [
   "bevy/bevy_wgpu",

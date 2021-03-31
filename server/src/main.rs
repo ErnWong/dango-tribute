@@ -8,6 +8,7 @@ use bevy_prototype_transform_tracker::TransformTrackingFollower;
 use shared::{physics_multiplayer::PhysicsWorld, physics_multiplayer_systems, settings};
 use std::time::Duration;
 use wasm_bindgen::prelude::*;
+use web_sys::Url;
 
 // const SHOW_DEBUG_WINDOW: bool = false;
 
@@ -104,20 +105,28 @@ fn show_shareable_url_system(
     for network_event in state.network_event_reader.iter(&network_events) {
         if let NetworkEvent::Hosted(endpoint_id) = network_event {
             info!("Found endpoint id");
-            let url = format!("http://192.168.1.9:9002/?join={}", endpoint_id);
+            let relative_url = format!("../client/?join={}", endpoint_id);
             let document = web_sys::window()
                 .expect("should have global window")
                 .document()
                 .expect("window should have document");
+            let document_location: String = document
+                .location()
+                .expect("document should have a location")
+                .to_string()
+                .into();
+            let absolute_url = Url::new_with_base(&relative_url, &document_location)
+                .expect("resulting url should be valid")
+                .href();
             document
                 .get_element_by_id("join-url")
                 .expect("join-url input should exist")
-                .set_attribute("value", &url)
+                .set_attribute("value", &absolute_url)
                 .expect("setting value attribute should succeed");
             document
                 .get_element_by_id("client-iframe")
                 .expect("client iframe should exist")
-                .set_attribute("src", &url)
+                .set_attribute("src", &absolute_url)
                 .expect("setting src attribute should succeed");
         }
     }
