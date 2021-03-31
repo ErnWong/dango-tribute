@@ -27,9 +27,9 @@ impl MessageSender {
 
     /// Send a Packet to the Server
     pub fn send(&mut self, packet: Packet) -> Result<(), Box<dyn Error + Send>> {
-        web_sys::console::log_1(&"sending data".into());
+        // web_sys::console::log_1(&"sending data".into());
         if let Err(_) = self.data_channel.send_with_u8_array(&packet.payload()) {
-            web_sys::console::log_1(&"dropped data".into());
+            // web_sys::console::log_1(&"dropped data".into());
             self.dropped_outgoing_messages
                 .borrow_mut()
                 .push_back(packet);

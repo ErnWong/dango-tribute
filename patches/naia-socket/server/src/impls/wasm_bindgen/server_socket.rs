@@ -61,7 +61,7 @@ pub struct ServerSocket {
 impl ServerSocket {
     /// TODO
     pub async fn listen(signalling_server_url: String) -> (String, Box<dyn ServerSocketTrait>) {
-        //web_sys::console::log_1(&"Server listening to new WebRTC connections...".into());
+        web_sys::console::log_1(&"Server listening to new WebRTC connections...".into());
 
         let (to_client_sender, mut to_client_receiver) =
             mpsc::channel::<Packet>(CLIENT_CHANNEL_SIZE);
@@ -76,7 +76,7 @@ impl ServerSocket {
             let mut clients: HashMap<SocketAddr, RtcDataChannel> = HashMap::new();
             let signalling_socket = WebSocket::new(signalling_server_url.as_str()).unwrap();
 
-            //web_sys::console::log_1(&"Waiting for connections via websocket relay...".into());
+            web_sys::console::log_1(&"Waiting for connections via websocket relay...".into());
             let signalling_socket_clone = signalling_socket.clone();
             let mut endpoint_id_sender_clone = endpoint_id_sender.clone();
             let is_first_message = AtomicBool::new(true);
@@ -97,9 +97,9 @@ impl ServerSocket {
                             return;
                         }
                         let offer_sdp_string = websocket_message_string;
-                        // web_sys::console::log_1(
-                        //     &"Got an offer string - creating rtc channel".into(),
-                        // );
+                        web_sys::console::log_1(
+                            &"Got an offer string - creating rtc channel".into(),
+                        );
                         // TODO: we don't know the address unless we try parsing sdp. Too
                         // much effort.
                         let fake_socket_address = SocketAddr::new(
@@ -142,11 +142,11 @@ impl ServerSocket {
                         let cloned_channel = channel.clone();
                         let from_client_sender_clone = from_client_sender.clone();
                         let channel_onopen_func: Box<dyn FnMut(JsValue)> = Box::new(move |_| {
-                            //web_sys::console::log_1(&"Rtc channel opened".into());
+                            web_sys::console::log_1(&"Rtc channel opened".into());
                             let mut from_client_sender_clone_2 = from_client_sender_clone.clone();
                             let channel_onmsg_func: Box<dyn FnMut(MessageEvent)> =
                                 Box::new(move |evt: MessageEvent| {
-                                    //web_sys::console::log_1(&"Rtc channel onmessage".into());
+                                    // web_sys::console::log_1(&"Rtc channel onmessage".into());
                                     if let Ok(arraybuf) =
                                         evt.data().dyn_into::<js_sys::ArrayBuffer>()
                                     {
@@ -185,14 +185,14 @@ impl ServerSocket {
                         let peer_clone = peer.clone();
                         let remote_desc_success_func: Box<dyn FnMut(JsValue)> = Box::new(
                             move |_| {
-                                //web_sys::console::log_1(
-                                //    &"successfully set remote description".into(),
-                                //);
+                                web_sys::console::log_1(
+                                    &"successfully set remote description".into(),
+                                );
                                 let signalling_socket_clone_3 = signalling_socket_clone_2.clone();
                                 let peer_clone_2 = peer_clone.clone();
                                 let peer_answer_func: Box<dyn FnMut(JsValue)> = Box::new(
                                     move |session_description: JsValue| {
-                                        //web_sys::console::log_1(&"generated answer".into());
+                                        web_sys::console::log_1(&"generated answer".into());
                                         let local_session_description = session_description
                                             .dyn_into::<RtcSessionDescription>()
                                             .unwrap();
@@ -202,9 +202,9 @@ impl ServerSocket {
                                         let peer_clone_3 = peer_clone_2.clone();
                                         let local_desc_success_func: Box<dyn FnMut(JsValue)> =
                                             Box::new(move |_| {
-                                                //web_sys::console::log_1(
-                                                //    &"successfully set local description".into(),
-                                                //);
+                                                web_sys::console::log_1(
+                                                    &"successfully set local description".into(),
+                                                );
                                                 let signalling_socket_clone_5 =
                                                     signalling_socket_clone_4.clone();
                                                 let peer_clone_4 = peer_clone_3.clone();
@@ -212,13 +212,13 @@ impl ServerSocket {
                                                     dyn FnMut(RtcPeerConnectionIceEvent),
                                                 > = Box::new(
                                                     move |event: RtcPeerConnectionIceEvent| {
-                                                        // web_sys::console::log_1(
-                                                        //     &"Found new ice candidate".into(),
-                                                        // );
+                                                        web_sys::console::log_1(
+                                                            &"Found new ice candidate".into(),
+                                                        );
                                                         // null candidate represents end-of-candidates.
                                                         // TODO: do we need to deregister handler?
                                                         if event.candidate().is_none() {
-                                                            // web_sys::console::log_1(&"Found all ice candidates - sending answer".into());
+                                                            web_sys::console::log_1(&"Found all ice candidates - sending answer".into());
                                                             let answer_sdp_string = peer_clone_4
                                                                 .local_description()
                                                                 .unwrap()
