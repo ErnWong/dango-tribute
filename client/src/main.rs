@@ -97,7 +97,7 @@ fn main() {
     .get("join")
     .expect("should have host id");
 
-    let endpoint_url = format!("http://192.168.1.9:8080/join/{}", host_id);
+    let endpoint_url = format!("http://dango-daikazoku.herokuapp.com/join/{}", host_id);
 
     app.add_plugin(NetworkedPhysicsClientPlugin::<PhysicsWorld>::new(
         settings::NETWORKED_PHYSICS_CONFIG,

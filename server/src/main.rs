@@ -53,7 +53,7 @@ fn main() {
 
     app.add_plugin(NetworkedPhysicsServerPlugin::<PhysicsWorld>::new(
         settings::NETWORKED_PHYSICS_CONFIG,
-        "ws://192.168.1.9:8080/host".to_string(),
+        "ws://dango-daikazoku.herokuapp.com/host".to_string(),
     ));
 
     // Order is important.
