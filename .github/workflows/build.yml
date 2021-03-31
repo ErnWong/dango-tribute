@@ -24,6 +24,7 @@ jobs:
               with:
                   target: wasm32-unknown-unknown
             - uses: davidB/rust-cargo-make@v1
+            - uses: jetli/wasm-bindgen-action@0.1.0
             - run: cargo make build-web --profile release
             - uses: actions/upload-artifact@v2
               with:
@@ -44,6 +45,7 @@ jobs:
               with:
                   target: wasm32-unknown-unknown
             - uses: davidB/rust-cargo-make@v1
+            - uses: jetli/wasm-bindgen-action@0.1.0
             - run: cargo make build-web --profile release
             - uses: actions/upload-artifact@v1
               with:
