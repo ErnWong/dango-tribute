@@ -45,9 +45,34 @@
         text-shadow: 2px 2px 4px black;
         text-align: center;
       }
+      .loading-screen span {
+        opacity: 0.0;
+      }
+      .loading-screen.load-complete-wasm #load-tick-wasm {
+        opacity: 1.0;
+      }
+      .loading-screen.load-complete-shaders #load-tick-shaders {
+        opacity: 1.0;
+      }
+      .loading-screen.load-complete-audio #load-tick-audio {
+        opacity: 1.0;
+      }
+      .loading-screen.load-complete-connection #load-tick-connection {
+        opacity: 1.0;
+      }
+      .loading-screen.load-complete-wasm.load-complete-shaders.load-complete-audio.load-complete-connection {
+        display: none;
+      }
     </style>
   </head>
-  <body></body>
+  <body>
+    <div id="loading-screen">
+      <p>Reading the dango recipe... <span id="load-tick-wasm">✓</span></p>
+      <p>Collecting the crayons... <span id="load-tick-shaders">✓</span></p>
+      <p>Assembling the music box... <span id="load-tick-audio">✓</span></p>
+      <p>Throwing the string telephone... <span id="load-tick-connection">✓</span></p>
+    </div>
+  </body>
   <script type="module">
     import init from './target/wasm.js';
     init();

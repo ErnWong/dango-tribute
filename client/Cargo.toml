@@ -25,6 +25,9 @@ web = [
   "web-sys/Window",
   "web-sys/UrlSearchParams",
   "web-sys/Location",
+  "web-sys/Document",
+  "web-sys/Element",
+  "web-sys/DomTokenList",
 ]
 dynamic = [
   "bevy/dynamic",

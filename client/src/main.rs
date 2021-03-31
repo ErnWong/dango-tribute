@@ -1,15 +1,18 @@
 use bevy::{
+    asset::LoadState,
     diagnostic::{FrameTimeDiagnosticsPlugin, PrintDiagnosticsPlugin},
     prelude::*,
     render::{pass::ClearColor, render_graph::base::BaseRenderGraphConfig},
 };
-use bevy_kira_audio::{Audio, AudioPlugin};
+use bevy_kira_audio::{Audio, AudioPlugin, AudioSource};
 use bevy_web_fullscreen::FullViewportPlugin;
 use wasm_bindgen::prelude::*;
 use web_sys::UrlSearchParams;
 
 use bevy_prototype_frameshader::FrameshaderPlugin;
-use bevy_prototype_networked_physics::NetworkedPhysicsClientPlugin;
+use bevy_prototype_networked_physics::{
+    events::ClientConnectionEvent, NetworkedPhysicsClientPlugin,
+};
 use bevy_prototype_transform_tracker::{TransformTrackingFollower, TransformTrackingPlugin};
 
 #[cfg(feature = "debug-fly-camera")]
@@ -43,6 +46,8 @@ const FRAGMENT_SHADER_PATH: &str = "shaders/frameshader.webgl2.frag";
 const FRAGMENT_SHADER_PATH: &str = "shaders/frameshader.wgpu.frag";
 
 fn main() {
+    show_load_complete("wasm");
+
     let mut app = App::build();
 
     // Note: Setup hot reloading first before loading other plugins.
@@ -122,6 +127,7 @@ fn main() {
         .add_system(physics_multiplayer_systems::physics_multiplayer_client_sync_system.system())
         .add_system(physics_multiplayer_systems::physics_multiplayer_client_spawn_system.system())
         .add_system(blinking_eyes::blinking_eyes_system.system())
+        .add_system(test_load_progress_system.system())
         .add_startup_system(setup.system());
 
     #[cfg(feature = "debug-fly-camera")]
@@ -174,4 +180,77 @@ fn setup(
 
     #[cfg(feature = "debug-fly-camera")]
     commands.with(FlyCamera::default());
+}
+
+#[derive(Default)]
+struct LoadProgressState {
+    audio_asset_event_reader: EventReader<AssetEvent<AudioSource>>,
+    shader_asset_event_reader: EventReader<AssetEvent<Shader>>,
+    client_connection_event_reader: EventReader<ClientConnectionEvent>,
+}
+
+fn test_load_progress_system(
+    mut load_progress_state: Local<LoadProgressState>,
+    audio_asset_events: Res<Events<AssetEvent<AudioSource>>>,
+    audio_sources: Res<Assets<AudioSource>>,
+    shaders: Res<Assets<Shader>>,
+    shader_asset_events: Res<Events<AssetEvent<Shader>>>,
+    asset_server: ResMut<AssetServer>,
+    client_connection_events: Res<Events<ClientConnectionEvent>>,
+) {
+    for _ in load_progress_state
+        .audio_asset_event_reader
+        .iter(&audio_asset_events)
+    {
+        let mut all_audio_loaded = true;
+        for audio_source in audio_sources.ids() {
+            if asset_server.get_load_state(audio_source) != LoadState::Loaded {
+                all_audio_loaded = false;
+                break;
+            }
+        }
+        if all_audio_loaded {
+            show_load_complete("audio");
+        }
+        break;
+    }
+
+    for _ in load_progress_state
+        .shader_asset_event_reader
+        .iter(&shader_asset_events)
+    {
+        let mut all_shaders_loaded = true;
+        for shader in shaders.ids() {
+            if asset_server.get_load_state(shader) != LoadState::Loaded {
+                all_shaders_loaded = false;
+                break;
+            }
+        }
+        if all_shaders_loaded {
+            show_load_complete("shader");
+        }
+        break;
+    }
+
+    for client_connection_event in load_progress_state
+        .client_connection_event_reader
+        .iter(&client_connection_events)
+    {
+        if let ClientConnectionEvent::Connected(client_id) = client_connection_event {
+            show_load_complete("connection");
+            break;
+        }
+    }
+}
+
+fn show_load_complete(component_name: &str) {
+    web_sys::window()
+        .expect("should have global window")
+        .document()
+        .expect("window should have document")
+        .get_element_by_id("loading-screen")
+        .expect("there should be a loading screen")
+        .class_list()
+        .add_1(&format!("load-complete-{}", component_name))
+        .expect("should be able to add a class to span");
 }
