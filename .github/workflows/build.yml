@@ -53,7 +53,7 @@ jobs:
               with:
                   version: '0.2.69'
             - run: cargo make build-web --profile release
-            - uses: actions/upload-artifact@v1
+            - uses: actions/upload-artifact@v2
               with:
                   name: server
                   path: |
