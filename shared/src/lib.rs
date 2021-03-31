@@ -5,3 +5,4 @@ pub mod physics_multiplayer_systems;
 pub mod player;
 pub mod player_input;
 pub mod settings;
+pub mod wasm_print_diagnostics_plugin;

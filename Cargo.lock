@@ -4473,6 +4473,7 @@ dependencies = [
  "rand 0.8.3",
  "serde",
  "splines",
+ "web-sys",
 ]
 
 [[package]]

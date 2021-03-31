@@ -22,3 +22,4 @@ num = "0.3.1"
 rand = "0.8.3"
 serde="1.0.118"
 splines = {version = "3.5.1", features = ["impl-nalgebra"]}
+web_sys = {version = "0.3.22", package = "web-sys", features = ["console"]}

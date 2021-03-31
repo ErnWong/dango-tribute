@@ -5,7 +5,10 @@ use bevy::{
 };
 use bevy_prototype_networked_physics::{net::NetworkEvent, NetworkedPhysicsServerPlugin};
 use bevy_prototype_transform_tracker::TransformTrackingFollower;
-use shared::{physics_multiplayer::PhysicsWorld, physics_multiplayer_systems, settings};
+use shared::{
+    physics_multiplayer::PhysicsWorld, physics_multiplayer_systems, settings,
+    wasm_print_diagnostics_plugin::WasmPrintDiagnosticsPlugin,
+};
 use std::time::Duration;
 use wasm_bindgen::prelude::*;
 use web_sys::Url;
@@ -60,7 +63,7 @@ fn main() {
     // The above plugins provide resources for the plugins below.
 
     app.add_plugin(FrameTimeDiagnosticsPlugin::default())
-        //.add_plugin(PrintDiagnosticsPlugin::default())
+        .add_plugin(WasmPrintDiagnosticsPlugin::default())
         .add_system(show_shareable_url_system.system())
         .add_system(
             physics_multiplayer_systems::physics_multiplayer_server_despawn_system.system(),

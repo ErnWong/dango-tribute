@@ -23,6 +23,7 @@ use shared::{
     camera_2point5d::{Camera2point5dBundle, Camera2point5dPlugin},
     physics_multiplayer::PhysicsWorld,
     physics_multiplayer_systems, player_input, settings,
+    wasm_print_diagnostics_plugin::WasmPrintDiagnosticsPlugin,
 };
 
 pub mod sakura;
@@ -108,7 +109,7 @@ fn main() {
     // The above plugins provide resources for the plugins below.
 
     app.add_plugin(FrameTimeDiagnosticsPlugin::default())
-        .add_plugin(PrintDiagnosticsPlugin::default())
+        .add_plugin(WasmPrintDiagnosticsPlugin::default())
         .add_plugin(AudioPlugin)
         .add_plugin(FrameshaderPlugin::new(
             VERTEX_SHADER_PATH.into(),
