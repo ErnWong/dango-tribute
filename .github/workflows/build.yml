@@ -1,0 +1,69 @@
+name: build
+
+env:
+    RUST_BACKTRACE: 1
+
+on:
+    push:
+        branches:
+            - master
+    pull_request:
+        branches:
+            - master
+
+jobs:
+    build-client:
+        name: build-client
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: ./client
+        steps:
+            - uses: actions-rs/toolchain@v1
+            - uses: davidB/rust-cargo-make@v1
+            - uses: actions/checkout@v2
+            - run: cargo make build-web --profile release
+            - uses: actions/upload-artifact@v2
+              with:
+                  name: client
+                  path: |
+                      client/index.html
+                      client/target/wasm.js
+                      client/target/wasm_bg.wasm
+    build-server:
+        name: build-server
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: ./server
+        steps:
+            - uses: actions-rs/toolchain@v1
+            - uses: davidB/rust-cargo-make@v1
+            - uses: actions/checkout@v2
+            - run: cargo make build-web --profile release
+            - uses: actions/upload-artifact@v1
+              with:
+                  name: server
+                  path: |
+                      server/index.html
+                      server/target/wasm.js
+                      server/target/wasm_bg.wasm
+    deploy-gh-pages:
+        name: deploy-gh-pages
+        runs-on: ubuntu-latest
+        if: github.ref == 'refs/heads/master'
+        needs: [build-client, build-server]
+        steps:
+            - name: Download client build
+              uses: actions/download-artifact@v2
+              with:
+                  name: client
+                  path: client
+            - name: Download server build
+              uses: actions/download-artifact@v2
+              with:
+                  name: server
+                  path: server
+            - uses: peaceiris/actions-gh-pages@v3
+              with:
+                  github_token: ${{ secrets.GITHUB_TOKEN }}
