@@ -29,7 +29,6 @@ jobs:
               with:
                   version: '0.2.69'
             - run: cargo make build-web --profile release
-            - run: ls -la ./ ./target
             - uses: actions/upload-artifact@v2
               with:
                   name: client
@@ -54,8 +53,6 @@ jobs:
               with:
                   version: '0.2.69'
             - run: cargo make build-web --profile release
-            - run: ls -la ./ ./target
-            - uses: mxschmitt/action-tmate@v3
             - uses: actions/upload-artifact@v1
               with:
                   name: server
