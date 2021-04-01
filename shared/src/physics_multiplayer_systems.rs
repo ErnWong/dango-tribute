@@ -199,7 +199,7 @@ fn sync_from_state(
 
     let new_player_ids: HashSet<PlayerId> = new_player_states.keys().copied().collect();
     let old_player_ids: HashSet<PlayerId> = player_map.0.keys().copied().collect();
-    info!("new_player_ids: {:?}", new_player_ids);
+    trace!("new_player_ids: {:?}", new_player_ids);
 
     let to_spawn = new_player_ids.difference(&old_player_ids);
     let to_despawn = old_player_ids.difference(&new_player_ids);
