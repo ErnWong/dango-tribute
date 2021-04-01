@@ -16,7 +16,7 @@ use std::{
 
 use naia_client_socket::ClientSocket;
 // #[cfg(not(target_arch = "wasm32"))]
-use naia_server_socket::{MessageSender as ServerSender, ServerSocket};
+use naia_server_socket::{MessageSender as ServerSender, NextEvent, ServerSocket};
 
 pub use naia_client_socket::LinkConditionerConfig;
 // #[cfg(not(target_arch = "wasm32"))]
@@ -69,6 +69,7 @@ pub struct NetworkResource {
     task_pool: TaskPool,
 
     pending_connections: Arc<Mutex<Vec<Box<dyn Connection>>>>,
+    pending_disconnections: Arc<Mutex<Vec<SocketAddr>>>,
     connection_sequence: atomic::AtomicU32,
     pub connections: HashMap<ConnectionHandle, Box<dyn Connection>>,
 
@@ -119,6 +120,7 @@ impl NetworkResource {
             connections: HashMap::new(),
             connection_sequence: atomic::AtomicU32::new(0),
             pending_connections: Arc::new(Mutex::new(Vec::new())),
+            pending_disconnections: Arc::new(Mutex::new(Vec::new())),
             // #[cfg(not(target_arch = "wasm32"))]
             listeners: Arc::new(Mutex::new(Vec::new())),
             // #[cfg(not(target_arch = "wasm32"))]
@@ -135,6 +137,7 @@ impl NetworkResource {
     pub fn listen(&mut self, signalling_server_url: String) {
         let server_channels = self.server_channels.clone();
         let pending_connections = self.pending_connections.clone();
+        let pending_disconnections = self.pending_disconnections.clone();
         let task_pool = self.task_pool.clone();
         let listeners = self.listeners.clone();
         let endpoint_id = self.endpoint_id.clone();
@@ -158,7 +161,7 @@ impl NetworkResource {
             let receiver_task = task_pool.spawn(async move {
                 loop {
                     match server_socket.receive().await {
-                        Ok(packet) => {
+                        NextEvent::ReceivedPacket(Ok(packet)) => {
                             let address = packet.address();
                             let message = String::from_utf8_lossy(packet.payload());
                             log::debug!(
@@ -204,8 +207,13 @@ impl NetworkResource {
                                 }
                             }
                         }
-                        Err(error) => {
+                        NextEvent::ReceivedPacket(Err(error)) => {
                             log::error!("Server Receive Error: {}", error);
+                        }
+                        NextEvent::Disconnected(socket_address) => {
+                            log::info!("Received a disconnection event");
+                            server_channels.write().unwrap().remove(&socket_address);
+                            pending_disconnections.lock().unwrap().push(socket_address);
                         }
                     }
                 }
@@ -337,6 +345,30 @@ pub fn receive_packets(
         }
         net.connections.insert(handle, conn);
         network_events.send(NetworkEvent::Connected(handle));
+    }
+
+    let pending_disconnections: Vec<SocketAddr> = net
+        .pending_disconnections
+        .lock()
+        .unwrap()
+        .drain(..)
+        .collect();
+    for mut disconnected_address in pending_disconnections {
+        log::info!("Finding handles to remove...");
+        let mut handles_to_disconnect = vec![];
+        for (handle, connection) in net.connections.iter() {
+            if connection.remote_address().unwrap() == disconnected_address {
+                handles_to_disconnect.push(handle.clone());
+            }
+        }
+        for handle in handles_to_disconnect {
+            log::info!(
+                "Removing handle {:?} and sending disconnected network event",
+                handle
+            );
+            net.connections.remove(&handle);
+            network_events.send(NetworkEvent::Disconnected(handle));
+        }
     }
 
     let packet_pool = net.packet_pool.clone();

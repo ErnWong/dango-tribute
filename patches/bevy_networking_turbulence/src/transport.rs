@@ -126,11 +126,18 @@ impl Connection for ServerConnection {
         /*self.channels_task =*/
         Some(self.task_pool.spawn(async move {
             loop {
-                let packet = channels_tx.next().await.unwrap();
-                sender
-                    .send(ServerPacket::new(client_address, (*packet).into()))
-                    .await
-                    .unwrap();
+                match channels_tx.next().await {
+                    Some(packet) => {
+                        sender
+                            .send(ServerPacket::new(client_address, (*packet).into()))
+                            .await
+                            .unwrap();
+                    }
+                    None => {
+                        log::info!("Connection channel disconnected");
+                        return; // exit task
+                    }
+                }
             }
         }));
     }
