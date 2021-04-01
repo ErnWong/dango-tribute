@@ -33,6 +33,7 @@ use crate::{
     Packet,
     ServerSocketTrait,
 };
+use js_sys::Reflect;
 use wasm_bindgen::{prelude::*, JsCast, JsValue};
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{
@@ -199,11 +200,13 @@ impl ServerSocket {
                                 let signalling_socket_clone_3 = signalling_socket_clone_2.clone();
                                 let peer_clone_2 = peer_clone.clone();
                                 let peer_answer_func: Box<dyn FnMut(JsValue)> = Box::new(
-                                    move |session_description: JsValue| {
+                                    move |answer: JsValue| {
                                         web_sys::console::log_1(&"generated answer".into());
-                                        let local_session_description = session_description
-                                            .dyn_into::<RtcSessionDescription>()
-                                            .unwrap();
+                                        let local_sdp_string =
+                                            Reflect::get(&answer, &JsValue::from_str("sdp"))
+                                                .unwrap()
+                                                .as_string()
+                                                .unwrap();
 
                                         let signalling_socket_clone_4 =
                                             signalling_socket_clone_3.clone();
@@ -250,10 +253,9 @@ impl ServerSocket {
 
                                         let mut session_description_init: RtcSessionDescriptionInit =
                                         RtcSessionDescriptionInit::new(
-                                            local_session_description.type_(),
+                                            RtcSdpType::Answer,
                                         );
-                                        session_description_init
-                                            .sdp(local_session_description.sdp().as_str());
+                                        session_description_init.sdp(&local_sdp_string);
                                         peer_clone_2
                                             .set_local_description(&session_description_init)
                                             .then(&local_desc_success_callback);

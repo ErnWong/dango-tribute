@@ -7,6 +7,7 @@ use crate::{error::NaiaClientSocketError, Packet};
 
 use naia_socket_shared::Ref;
 
+use js_sys::Reflect;
 use wasm_bindgen::{prelude::*, JsCast, JsValue};
 use web_sys::{
     ErrorEvent, MessageEvent, ProgressEvent, RtcConfiguration, RtcDataChannel, RtcDataChannelInit,
@@ -103,9 +104,12 @@ pub fn webrtc_initialize(
 
     let peer_clone = peer.clone();
     let server_url_msg = Ref::new(server_url_str);
-    let peer_offer_func: Box<dyn FnMut(JsValue)> = Box::new(move |e: JsValue| {
+    let peer_offer_func: Box<dyn FnMut(JsValue)> = Box::new(move |offer: JsValue| {
         web_sys::console::log_1(&"created offer".into());
-        let session_description = e.dyn_into::<RtcSessionDescription>().unwrap();
+        let sdp_string = Reflect::get(&offer, &JsValue::from_str("sdp"))
+            .unwrap()
+            .as_string()
+            .unwrap();
         let peer_clone_2 = peer_clone.clone();
         let server_url_msg_clone = server_url_msg.clone();
         let peer_desc_func: Box<dyn FnMut(JsValue)> = Box::new(move |_: JsValue| {
@@ -192,8 +196,8 @@ pub fn webrtc_initialize(
         let peer_desc_callback = Closure::wrap(peer_desc_func);
 
         let mut session_description_init: RtcSessionDescriptionInit =
-            RtcSessionDescriptionInit::new(session_description.type_());
-        session_description_init.sdp(session_description.sdp().as_str());
+            RtcSessionDescriptionInit::new(RtcSdpType::Offer);
+        session_description_init.sdp(&sdp_string);
         peer_clone
             .set_local_description(&session_description_init)
             .then(&peer_desc_callback);
