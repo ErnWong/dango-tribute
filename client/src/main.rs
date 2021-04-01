@@ -48,6 +48,9 @@ const FRAGMENT_SHADER_PATH: &str = "shaders/frameshader.wgpu.frag";
 fn main() {
     show_load_complete("wasm");
 
+    log::set_logger(&wasm_bindgen_console_logger::DEFAULT_LOGGER);
+    log::set_max_level(log::LevelFilter::Info);
+
     let mut app = App::build();
 
     // Note: Setup hot reloading first before loading other plugins.

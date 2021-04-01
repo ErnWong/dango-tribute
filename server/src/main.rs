@@ -16,6 +16,9 @@ use web_sys::Url;
 // const SHOW_DEBUG_WINDOW: bool = false;
 
 fn main() {
+    log::set_logger(&wasm_bindgen_console_logger::DEFAULT_LOGGER);
+    log::set_max_level(log::LevelFilter::Info);
+
     let mut app = App::build();
 
     // Note: Setup hot reloading first before loading other plugins.

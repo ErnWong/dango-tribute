@@ -1504,9 +1504,11 @@ dependencies = [
  "bevy_prototype_transform_tracker",
  "bevy_web_fullscreen",
  "bevy_webgl2",
+ "log",
  "rand 0.8.3",
  "shared",
  "wasm-bindgen",
+ "wasm-bindgen-console-logger",
  "web-sys",
  "winit",
 ]
@@ -4403,8 +4405,10 @@ dependencies = [
  "bevy",
  "bevy_prototype_networked_physics",
  "bevy_prototype_transform_tracker",
+ "log",
  "shared",
  "wasm-bindgen",
+ "wasm-bindgen-console-logger",
  "web-sys",
  "winit",
 ]
@@ -5288,6 +5292,16 @@ dependencies = [
  "quote",
  "syn",
  "wasm-bindgen-shared",
+]
+
+[[package]]
+name = "wasm-bindgen-console-logger"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7530a275e7faf7b5b83aabdf78244fb8d9a68a2ec4b26935a05ecc0c9b0185ed"
+dependencies = [
+ "log",
+ "wasm-bindgen",
 ]
 
 [[package]]
