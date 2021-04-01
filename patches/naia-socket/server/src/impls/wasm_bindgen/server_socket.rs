@@ -29,6 +29,7 @@ use crate::{
     error::NaiaServerSocketError,
     //link_conditioner::LinkConditioner,
     message_sender::MessageSender,
+    NextEvent,
     Packet,
     ServerSocketTrait,
 };
@@ -36,8 +37,8 @@ use wasm_bindgen::{prelude::*, JsCast, JsValue};
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{
     ErrorEvent, MessageEvent, RtcConfiguration, RtcDataChannel, RtcDataChannelInit,
-    RtcDataChannelType, RtcPeerConnection, RtcPeerConnectionIceEvent, RtcSdpType,
-    RtcSessionDescription, RtcSessionDescriptionInit, WebSocket,
+    RtcDataChannelType, RtcIceConnectionState, RtcPeerConnection, RtcPeerConnectionIceEvent,
+    RtcSdpType, RtcSessionDescription, RtcSessionDescriptionInit, WebSocket,
 };
 
 use rand::Rng;
@@ -56,6 +57,7 @@ pub struct IceServerConfig {
 pub struct ServerSocket {
     to_client_sender: mpsc::Sender<Packet>,
     from_client_receiver: mpsc::Receiver<Result<Packet, IoError>>,
+    disconnected_client_receiver: mpsc::Receiver<SocketAddr>,
 }
 
 impl ServerSocket {
@@ -69,6 +71,11 @@ impl ServerSocket {
 
         let (endpoint_id_sender, mut endpoint_id_receiver) = mpsc::channel::<String>(1);
 
+        let (disconnected_internal_sender, mut disconnected_internal_receiver) =
+            mpsc::channel(CLIENT_CHANNEL_SIZE);
+        let (mut disconnected_client_sender, disconnected_client_receiver) =
+            mpsc::channel(CLIENT_CHANNEL_SIZE);
+
         //let evil = std::thread::spawn(move || {
         spawn_local(async move {
             let (mut new_client_sender, mut new_client_receiver) =
@@ -79,6 +86,7 @@ impl ServerSocket {
             web_sys::console::log_1(&"Waiting for connections via websocket relay...".into());
             let signalling_socket_clone = signalling_socket.clone();
             let mut endpoint_id_sender_clone = endpoint_id_sender.clone();
+            let disconnected_internal_sender_clone = disconnected_internal_sender.clone();
             let is_first_message = AtomicBool::new(true);
             let signalling_socket_onmessage_func: Box<dyn FnMut(MessageEvent)> = Box::new(
                 move |event: MessageEvent| {
@@ -282,6 +290,31 @@ impl ServerSocket {
                         );
                         remote_desc_success_callback.forget();
                         remote_desc_failure_callback.forget();
+
+                        let mut disconnected_internal_sender_clone_2 =
+                            disconnected_internal_sender_clone.clone();
+                        let peer_clone_disconnect_detect = peer.clone();
+                        let connection_state_change_func: Box<dyn FnMut(JsValue)> = Box::new(
+                            move |_| match peer_clone_disconnect_detect.ice_connection_state() {
+                                RtcIceConnectionState::Failed
+                                | RtcIceConnectionState::Closed
+                                | RtcIceConnectionState::Disconnected => {
+                                    web_sys::console::log_1(
+                                            &"RtcIceConnectionState: failed/closed/disconnected - sending disconnect and closing peer connection".into(),
+                                        );
+                                    peer_clone_disconnect_detect.close();
+                                    disconnected_internal_sender_clone_2
+                                        .try_send(fake_socket_address);
+                                }
+                                _ => {}
+                            },
+                        );
+                        let connection_state_change_closure =
+                            Closure::wrap(connection_state_change_func);
+                        peer.set_oniceconnectionstatechange(Some(
+                            connection_state_change_closure.as_ref().unchecked_ref(),
+                        ));
+                        connection_state_change_closure.forget();
                     }
                 },
             );
@@ -296,6 +329,7 @@ impl ServerSocket {
 
             enum Next {
                 NewClientMessage((SocketAddr, RtcDataChannel)),
+                DisconnectedClientMessage(SocketAddr),
                 ToClientMessage(Packet),
             }
             loop {
@@ -306,9 +340,16 @@ impl ServerSocket {
                     let new_client_message_receiver_next = new_client_receiver.next().fuse();
                     pin_mut!(new_client_message_receiver_next);
 
+                    let disconnected_client_message_receiver_next =
+                        disconnected_internal_receiver.next().fuse();
+                    pin_mut!(disconnected_client_message_receiver_next);
+
                     select! {
                         new_client_result = new_client_message_receiver_next => {
                             Next::NewClientMessage(new_client_result.expect("new client message receiver closed"))
+                        }
+                        disconnected_client_result = disconnected_client_message_receiver_next => {
+                            Next::DisconnectedClientMessage(disconnected_client_result.expect("disconnected client message receiver closed"))
                         }
                         to_client_message = to_client_receiver_next => {
                             Next::ToClientMessage(
@@ -321,6 +362,11 @@ impl ServerSocket {
                 match next {
                     Next::NewClientMessage((socket_address, data_channel)) => {
                         clients.insert(socket_address, data_channel);
+                    }
+                    Next::DisconnectedClientMessage(socket_address) => {
+                        web_sys::console::log_1(&"Removing client".into());
+                        clients.remove(&socket_address);
+                        disconnected_client_sender.try_send(socket_address);
                     }
                     Next::ToClientMessage(packet) => {
                         // web_sys::console::log_1(
@@ -341,6 +387,7 @@ impl ServerSocket {
         let socket = ServerSocket {
             to_client_sender,
             from_client_receiver,
+            disconnected_client_receiver,
         };
         (endpoint_id_receiver.next().await.unwrap(), Box::new(socket))
     }
@@ -348,12 +395,24 @@ impl ServerSocket {
 
 #[async_trait]
 impl ServerSocketTrait for ServerSocket {
-    async fn receive(&mut self) -> Result<Packet, NaiaServerSocketError> {
-        self.from_client_receiver
-            .next()
-            .await
-            .unwrap()
-            .map_err(|e| NaiaServerSocketError::Wrapped(Box::new(e)))
+    async fn receive(&mut self) -> NextEvent {
+        let receive_packet_next = self.from_client_receiver.next().fuse();
+        pin_mut!(receive_packet_next);
+
+        let disconnected_next = self.disconnected_client_receiver.next().fuse();
+        pin_mut!(disconnected_next);
+
+        select! {
+            receive_packet_result = receive_packet_next => {
+                NextEvent::ReceivedPacket(receive_packet_result.expect("from client receiver closed").map_err(|e| NaiaServerSocketError::Wrapped(Box::new(e))))
+            }
+            disconnected_result = disconnected_next => {
+                                web_sys::console::log_1(
+                                    &"Returning NextEvent::Disconnected".into(),
+                                );
+                NextEvent::Disconnected(disconnected_result.expect("disconnected client receiver closed"))
+            }
+        }
 
         /*
         enum Next {

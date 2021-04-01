@@ -46,7 +46,7 @@ serde = { version = "^1.0.59", optional = true }
 serde_derive = { version = "^1.0.59", optional = true  }
 web_sys = { version = "0.3.22", package = "web-sys", features = [
     "RtcConfiguration", "RtcDataChannel", "RtcDataChannelInit", "RtcDataChannelType",
-    "RtcIceCandidate", "RtcIceCandidateInit",
+    "RtcIceCandidate", "RtcIceCandidateInit", "RtcIceConnectionState",
     "RtcPeerConnection", "RtcSdpType",  "RtcSessionDescription", "RtcSessionDescriptionInit",
     "RtcPeerConnectionIceEvent", "WebSocket", "console",
     "XmlHttpRequest", "XmlHttpRequestEventTarget", "MessageEvent", "ProgressEvent", "ErrorEvent", "Blob" ], optional = true  }

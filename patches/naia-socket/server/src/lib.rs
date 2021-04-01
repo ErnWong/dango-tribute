@@ -40,6 +40,7 @@ pub use impls::ServerSocket;
 pub use message_sender::MessageSender;
 pub use naia_socket_shared::find_my_ip_address;
 pub use packet::Packet;
+pub use server_socket_trait::NextEvent;
 pub use server_socket_trait::ServerSocketTrait;
 
 cfg_if! {
