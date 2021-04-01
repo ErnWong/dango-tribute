@@ -8,9 +8,16 @@ use bevy_prototype_networked_physics::{
     net::NetworkResource,
 };
 
+pub const INPUT_RESYNC_INTERVAL: f64 = 3.0;
+
+#[derive(Default)]
+pub struct LastResetTime(f64);
+
 pub fn player_input_system(
     mut state: Local<PlayerInputState>,
+    mut last_resync: Local<LastResetTime>,
     input: Res<Input<KeyCode>>,
+    time: Res<Time>,
     mut client: ResMut<Client<PhysicsWorld>>,
     mut net: ResMut<NetworkResource>,
 ) {
@@ -23,7 +30,14 @@ pub fn player_input_system(
     if let ClientState::Ready(ready_client) = client.state_mut() {
         let player_id = PlayerId(ready_client.client_id());
 
-        if left != state.left {
+        let resync = if time.seconds_since_startup() - last_resync.0 > INPUT_RESYNC_INTERVAL {
+            last_resync.0 = time.seconds_since_startup();
+            true
+        } else {
+            false
+        };
+
+        if resync || left != state.left {
             ready_client.issue_command(
                 PhysicsCommand::PlayerInput {
                     player_id,
@@ -32,7 +46,7 @@ pub fn player_input_system(
                 &mut *net,
             );
         }
-        if right != state.right {
+        if resync || right != state.right {
             ready_client.issue_command(
                 PhysicsCommand::PlayerInput {
                     player_id,
@@ -41,7 +55,7 @@ pub fn player_input_system(
                 &mut *net,
             );
         }
-        if jump != state.jump {
+        if resync || jump != state.jump {
             ready_client.issue_command(
                 PhysicsCommand::PlayerInput {
                     player_id,
@@ -50,7 +64,7 @@ pub fn player_input_system(
                 &mut *net,
             );
         }
-        if roll != state.roll {
+        if resync || roll != state.roll {
             ready_client.issue_command(
                 PhysicsCommand::PlayerInput {
                     player_id,
