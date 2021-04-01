@@ -128,7 +128,6 @@ fn main() {
         .add_plugin(SakuraPlugin)
         .add_system(player_input::player_input_system.system())
         .add_system(physics_multiplayer_systems::physics_multiplayer_client_sync_system.system())
-        .add_system(physics_multiplayer_systems::physics_multiplayer_client_spawn_system.system())
         .add_system(blinking_eyes::blinking_eyes_system.system())
         .add_system(test_load_progress_system.system())
         .add_startup_system(setup.system());

@@ -42,9 +42,10 @@ pub struct SpawnSystemState {
     client_connection_event_reader: EventReader<ClientConnectionEvent>,
 }
 
-pub fn physics_multiplayer_client_spawn_system(
+//#[cfg(not(target_arch = "wasm32"))]
+pub fn physics_multiplayer_server_spawn_despawn_system(
     mut state: Local<SpawnSystemState>,
-    mut client: ResMut<Client<PhysicsWorld>>,
+    mut server: ResMut<Server<PhysicsWorld>>,
     client_connection_events: Res<Events<ClientConnectionEvent>>,
     mut net: ResMut<NetworkResource>,
 ) {
@@ -52,9 +53,9 @@ pub fn physics_multiplayer_client_spawn_system(
         .client_connection_event_reader
         .iter(&client_connection_events)
     {
-        if let ClientConnectionEvent::Connected(client_id) = client_connection_event {
-            if let ClientState::Ready(ready_client) = client.state_mut() {
-                ready_client.issue_command(
+        match client_connection_event {
+            ClientConnectionEvent::Connected(client_id) => {
+                server.issue_command(
                     PhysicsCommand::SpawnPlayer {
                         player_id: PlayerId(*client_id),
                         // TODO: Dynamically chosen...
@@ -66,36 +67,18 @@ pub fn physics_multiplayer_client_spawn_system(
                             1 => Color::rgb(0.3, 0.8, 0.4),
                             2 => Color::rgb(1.0, 0.8, 0.3),
                             3 => Color::rgb(0.3, 0.6, 1.0),
-                            _ => Color::RED,
+                            _ => unreachable!(),
                         },
                     },
                     &mut net,
                 );
             }
-        }
-    }
-}
-
-//#[cfg(not(target_arch = "wasm32"))]
-pub fn physics_multiplayer_server_despawn_system(
-    mut state: Local<SpawnSystemState>,
-    mut server: ResMut<Server<PhysicsWorld>>,
-    client_connection_events: Res<Events<ClientConnectionEvent>>,
-    mut net: ResMut<NetworkResource>,
-) {
-    for client_connection_event in state
-        .client_connection_event_reader
-        .iter(&client_connection_events)
-    {
-        if let ClientConnectionEvent::Disconnected(client_id) = client_connection_event {
-            info!(
-                "Found ClientConnectionEvent::Disconnected({}) - issuing despawn",
-                client_id
-            );
-            server.issue_command(
-                PhysicsCommand::DespawnPlayer(PlayerId(*client_id)),
-                &mut net,
-            );
+            ClientConnectionEvent::Disconnected(client_id) => {
+                server.issue_command(
+                    PhysicsCommand::DespawnPlayer(PlayerId(*client_id)),
+                    &mut net,
+                );
+            }
         }
     }
 }

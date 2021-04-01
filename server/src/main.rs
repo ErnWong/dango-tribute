@@ -69,7 +69,7 @@ fn main() {
         .add_plugin(WasmPrintDiagnosticsPlugin::default())
         .add_system(show_shareable_url_system.system())
         .add_system(
-            physics_multiplayer_systems::physics_multiplayer_server_despawn_system.system(),
+            physics_multiplayer_systems::physics_multiplayer_server_spawn_despawn_system.system(),
         );
 
     // if SHOW_DEBUG_WINDOW {
