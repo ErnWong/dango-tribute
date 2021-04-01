@@ -41,36 +41,92 @@
         margin-top: -0.5em;
         font-size: 24px;
         color: white;
-        z-index: 100;
+        z-index: 1;
         text-shadow: 2px 2px 4px black;
         text-align: center;
       }
-      .loading-screen span {
+      #loading-screen {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        background-color: white;
+        z-index: 2;
+        font-style: italic;
+        opacity: 1.0;
+        transition: opacity 1.0s 0.5s;
+        pointer-events: none;
+      }
+      #loading-screen h1 {
+        font-size: 1.3em;
+        text-transform: uppercase;
+        font-weight: normal;
+      }
+      #loading-screen p {
+        opacity: 1.0;
+        transition: opacity 0.3s;
+        margin: 0.2em;
+      }
+      #loading-screen p span {
+        opacity: 0.0;
+        transition: opacity 0.3s;
+      }
+      #loading-screen.load-complete-wasm #load-wasm span {
+        opacity: 1.0;
+      }
+      #loading-screen.load-complete-wasm #load-wasm {
+        opacity: 0.5;
+      }
+      #loading-screen.load-complete-shaders #load-shaders span {
+        opacity: 1.0;
+      }
+      #loading-screen.load-complete-shaders #load-shaders {
+        opacity: 0.5;
+      }
+      #loading-screen.load-complete-audio #load-audio span {
+        opacity: 1.0;
+      }
+      #loading-screen.load-complete-audio #load-audio {
+        opacity: 0.5;
+      }
+      #loading-screen.load-complete-connection #load-connection span {
+        opacity: 1.0;
+      }
+      #loading-screen.load-complete-connection #load-connection {
+        opacity: 0.5;
+      }
+      #loading-screen.load-complete-wasm.load-complete-shaders.load-complete-audio.load-complete-connection {
         opacity: 0.0;
       }
-      .loading-screen.load-complete-wasm #load-tick-wasm {
-        opacity: 1.0;
+      #loading-screen #loading-text {
+        display: inline;
       }
-      .loading-screen.load-complete-shaders #load-tick-shaders {
-        opacity: 1.0;
+      #loading-screen #loading-complete-text {
+        display: none;
       }
-      .loading-screen.load-complete-audio #load-tick-audio {
-        opacity: 1.0;
+      #loading-screen.load-complete-wasm.load-complete-shaders.load-complete-audio.load-complete-connection #loading-complete-text {
+        display: inline;
       }
-      .loading-screen.load-complete-connection #load-tick-connection {
-        opacity: 1.0;
-      }
-      .loading-screen.load-complete-wasm.load-complete-shaders.load-complete-audio.load-complete-connection {
+      #loading-screen.load-complete-wasm.load-complete-shaders.load-complete-audio.load-complete-connection #loading-text {
         display: none;
       }
     </style>
   </head>
   <body>
     <div id="loading-screen">
-      <p>Reading the dango recipe... <span id="load-tick-wasm">✓</span></p>
-      <p>Collecting the crayons... <span id="load-tick-shaders">✓</span></p>
-      <p>Assembling the music box... <span id="load-tick-audio">✓</span></p>
-      <p>Throwing the string telephone... <span id="load-tick-connection">✓</span></p>
+      <h1>
+        <span id="loading-text">Loading</span>
+        <span id="loading-complete-text">Ready</span>
+      </h1>
+      <p id="load-wasm">Reading the dango recipe… <span>✓</span></p>
+      <p id="load-shaders">Collecting the crayons… <span>✓</span></p>
+      <p id="load-audio">Assembling the music box… <span>✓</span></p>
+      <p id="load-connection">Throwing the string telephone… <span>✓</span></p>
     </div>
   </body>
   <script type="module">
