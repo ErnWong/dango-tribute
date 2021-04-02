@@ -130,6 +130,7 @@ fn main() {
         .add_system(physics_multiplayer_systems::physics_multiplayer_client_sync_system.system())
         .add_system(blinking_eyes::blinking_eyes_system.system())
         .add_system(test_load_progress_system.system())
+        .add_system(update_status_system.system())
         .add_startup_system(setup.system());
 
     #[cfg(feature = "debug-fly-camera")]
@@ -268,4 +269,23 @@ fn show_load_complete(component_name: &str) {
         .class_list()
         .add_1(&format!("load-complete-{}", component_name))
         .expect("should be able to add a class to span");
+}
+
+fn update_status_system(
+    mut client_connection_event_reader: Local<EventReader<ClientConnectionEvent>>,
+    client_connection_events: Res<Events<ClientConnectionEvent>>,
+) {
+    for client_connection_event in client_connection_event_reader.iter(&client_connection_events) {
+        let class_name = match client_connection_event {
+            ClientConnectionEvent::Connected(_) => "status-connected",
+            ClientConnectionEvent::Disconnected(_) => "status-disconnected",
+        };
+        web_sys::window()
+            .expect("should have global window")
+            .document()
+            .expect("window should have document")
+            .get_element_by_id("status")
+            .expect("there should be a status span")
+            .set_class_name(class_name);
+    }
 }

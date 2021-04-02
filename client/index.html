@@ -166,6 +166,16 @@
       #loading-screen.load-complete-wasm.load-complete-shaders.load-complete-audio.load-complete-connection #loading-text {
         display: none;
       }
+      #status .status-connecting-text,
+      #status .status-connected-text,
+      #status .status-disconnected-text {
+        display: none;
+      }
+      #status.status-connecting .status-connecting-text,
+      #status.status-connected .status-connected-text,
+      #status.status-disconnected .status-disconnected-text {
+        display: inline;
+      }
     </style>
   </head>
   <body>
@@ -187,6 +197,12 @@
     </div>
     <footer id="footer">
       <p>
+        <span id="status" class="status-connecting">
+          <span class="status-connecting-text">Waiting the other end to catch the string telephone…</span>
+          <span class="status-connected-text">Hooray! You are connected.</span>
+          <span class="status-disconnected-text">Oh no! You got disconnected. Try refreshing the page.</span>
+        </span>
+        <br>
         Hold down <kbd>shift</kbd> to roll around.<br>
         Hacked together by Ernest. Visual concept inspired by Clannad.
       </p>
