@@ -69,7 +69,7 @@ pub struct NetworkResource {
     task_pool: TaskPool,
 
     pending_connections: Arc<Mutex<Vec<Box<dyn Connection>>>>,
-    pending_disconnections: Arc<Mutex<Vec<SocketAddr>>>,
+    pending_disconnections: Arc<Mutex<Vec<Option<SocketAddr>>>>,
     connection_sequence: atomic::AtomicU32,
     pub connections: HashMap<ConnectionHandle, Box<dyn Connection>>,
 
@@ -213,7 +213,10 @@ impl NetworkResource {
                         NextEvent::Disconnected(socket_address) => {
                             log::info!("Received a disconnection event");
                             server_channels.write().unwrap().remove(&socket_address);
-                            pending_disconnections.lock().unwrap().push(socket_address);
+                            pending_disconnections
+                                .lock()
+                                .unwrap()
+                                .push(Some(socket_address));
                         }
                     }
                 }
@@ -347,7 +350,14 @@ pub fn receive_packets(
         network_events.send(NetworkEvent::Connected(handle));
     }
 
-    let pending_disconnections: Vec<SocketAddr> = net
+    let mut handles_to_disconnect = vec![];
+    for (handle, connection) in net.connections.iter_mut() {
+        if connection.disconnected() {
+            handles_to_disconnect.push(handle.clone());
+        }
+    }
+
+    let pending_disconnections: Vec<Option<SocketAddr>> = net
         .pending_disconnections
         .lock()
         .unwrap()
@@ -355,20 +365,20 @@ pub fn receive_packets(
         .collect();
     for mut disconnected_address in pending_disconnections {
         log::info!("Finding handles to remove...");
-        let mut handles_to_disconnect = vec![];
         for (handle, connection) in net.connections.iter() {
-            if connection.remote_address().unwrap() == disconnected_address {
+            if connection.remote_address() == disconnected_address {
                 handles_to_disconnect.push(handle.clone());
             }
         }
-        for handle in handles_to_disconnect {
-            log::info!(
-                "Removing handle {:?} and sending disconnected network event",
-                handle
-            );
-            net.connections.remove(&handle);
-            network_events.send(NetworkEvent::Disconnected(handle));
-        }
+    }
+
+    for handle in handles_to_disconnect {
+        log::info!(
+            "Removing handle {:?} and sending disconnected network event",
+            handle
+        );
+        net.connections.remove(&handle);
+        network_events.send(NetworkEvent::Disconnected(handle));
     }
 
     let packet_pool = net.packet_pool.clone();

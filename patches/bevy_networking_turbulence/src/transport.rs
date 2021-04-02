@@ -5,7 +5,7 @@ use bytes::Bytes;
 use std::{error::Error, net::SocketAddr};
 
 use naia_client_socket::{
-    ClientSocketTrait, MessageSender as ClientSender, Packet as ClientPacket,
+    ClientSocketTrait, MessageSender as ClientSender, NaiaClientSocketError, Packet as ClientPacket,
 };
 // #[cfg(not(target_arch = "wasm32"))]
 use naia_server_socket::{MessageSender as ServerSender, Packet as ServerPacket};
@@ -30,6 +30,8 @@ pub type ConnectionChannelsBuilder =
     MessageChannelsBuilder<TaskPoolRuntime, MuxPacketPool<BufferPacketPool<SimpleBufferPool>>>;
 
 pub trait Connection: Send + Sync {
+    fn disconnected(&self) -> bool;
+
     fn remote_address(&self) -> Option<SocketAddr>;
 
     fn send(&mut self, payload: Packet) -> Result<(), Box<dyn Error + Send>>;
@@ -84,6 +86,10 @@ impl ServerConnection {
 
 // #[cfg(not(target_arch = "wasm32"))]
 impl Connection for ServerConnection {
+    fn disconnected(&self) -> bool {
+        false
+    }
+
     fn remote_address(&self) -> Option<SocketAddr> {
         Some(self.client_address)
     }
@@ -159,6 +165,8 @@ pub struct ClientConnection {
 
     channels: Option<MessageChannels>,
     channels_rx: Option<IncomingMultiplexedPackets<MultiplexedPacket>>,
+
+    disconnected: bool,
     // #[cfg(not(target_arch = "wasm32"))]
     //channels_task: Option<Task<()>>,
 }
@@ -175,6 +183,7 @@ impl ClientConnection {
             sender: Some(sender),
             channels: None,
             channels_rx: None,
+            disconnected: false,
             // #[cfg(not(target_arch = "wasm32"))]
             //channels_task: None,
         }
@@ -182,6 +191,10 @@ impl ClientConnection {
 }
 
 impl Connection for ClientConnection {
+    fn disconnected(&self) -> bool {
+        self.disconnected
+    }
+
     fn remote_address(&self) -> Option<SocketAddr> {
         None
     }
@@ -199,6 +212,10 @@ impl Connection for ClientConnection {
                 Some(packet) => Some(Ok(Packet::copy_from_slice(packet.payload()))),
                 None => None,
             },
+            Err(NaiaClientSocketError::Disconnected) => {
+                self.disconnected = true;
+                None
+            }
             Err(err) => Some(Err(Box::new(err))),
         }
     }
