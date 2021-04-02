@@ -11,9 +11,9 @@ use js_sys::Reflect;
 use wasm_bindgen::{prelude::*, JsCast, JsValue};
 use web_sys::{
     ErrorEvent, MessageEvent, ProgressEvent, RtcConfiguration, RtcDataChannel, RtcDataChannelInit,
-    RtcDataChannelType, RtcIceCandidate, RtcIceCandidateInit, RtcPeerConnection,
-    RtcPeerConnectionIceEvent, RtcSdpType, RtcSessionDescription, RtcSessionDescriptionInit,
-    XmlHttpRequest,
+    RtcDataChannelType, RtcIceCandidate, RtcIceCandidateInit, RtcIceConnectionState,
+    RtcPeerConnection, RtcPeerConnectionIceEvent, RtcSdpType, RtcSessionDescription,
+    RtcSessionDescriptionInit, XmlHttpRequest,
 };
 
 #[derive(Deserialize, Debug, Clone)]
@@ -214,6 +214,30 @@ pub fn webrtc_initialize(
 
     peer_offer_callback.forget();
     peer_error_callback.forget();
+
+    let peer_clone_disconnect_detect = peer.clone();
+    let msg_queue_clone_disconnect_detect = msg_queue.clone();
+    let connection_state_change_func: Box<dyn FnMut(JsValue)> = Box::new(move |_| {
+        match peer_clone_disconnect_detect.ice_connection_state() {
+            RtcIceConnectionState::Failed
+            | RtcIceConnectionState::Closed
+            | RtcIceConnectionState::Disconnected => {
+                web_sys::console::log_1(
+                        &"RtcIceConnectionState: failed/closed/disconnected - sending disconnect and closing peer connection".into(),
+                    );
+                peer_clone_disconnect_detect.close();
+                msg_queue_clone_disconnect_detect
+                    .borrow_mut()
+                    .push_back(Err(NaiaClientSocketError::Disconnected));
+            }
+            _ => {}
+        }
+    });
+    let connection_state_change_closure = Closure::wrap(connection_state_change_func);
+    peer.set_oniceconnectionstatechange(Some(
+        connection_state_change_closure.as_ref().unchecked_ref(),
+    ));
+    connection_state_change_closure.forget();
 
     return channel;
 }
