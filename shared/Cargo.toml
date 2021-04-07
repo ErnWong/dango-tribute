@@ -7,12 +7,18 @@ edition = "2018"
 [features]
 default = [
   "bevy/render",
-  "bevy_prototype_networked_physics/use-webrtc",
+]
+web = [
+  "bevy_networking_turbulence/use-webrtc",
+]
+native = [
+  "bevy_networking_turbulence/use-udp",
 ]
 
 [dependencies]
 bevy = {version = "0.4", default-features = false}
 bevy_prototype_lyon = {git = "https://github.com/Nilirad/bevy_prototype_lyon", branch = "master"}
+bevy_networking_turbulence = {version = "0.2.0", default-features = false}
 bevy_prototype_networked_physics = {path = "../crates/bevy_prototype_networked_physics", default-features = false}
 bevy_prototype_transform_tracker = {path = "../crates/bevy_prototype_transform_tracker"}
 nphysics2d = "0.18"

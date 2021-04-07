@@ -3,7 +3,7 @@ use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, PrintDiagnosticsPlugin},
     prelude::*,
 };
-use bevy_prototype_networked_physics::{net::NetworkEvent, NetworkedPhysicsServerPlugin};
+use bevy_networking_turbulence::NetworkEvent;
 use bevy_prototype_transform_tracker::TransformTrackingFollower;
 use shared::{
     physics_multiplayer::PhysicsWorld, physics_multiplayer_systems, settings,
@@ -12,6 +12,10 @@ use shared::{
 use std::time::Duration;
 use wasm_bindgen::prelude::*;
 use web_sys::Url;
+
+pub mod networking;
+
+use networking::NetworkedPhysicsServerPlugin;
 
 // const SHOW_DEBUG_WINDOW: bool = false;
 

@@ -32,7 +32,7 @@ bevy_app = "0.4"
 bevy_ecs = "0.4"
 bevy_tasks = "0.4"
 turbulence = "0.3"
-naia-client-socket = { version = "0.5", features = ["multithread"] }
+naia-client-socket = { version = "0.5.2", features = ["multithread"] }
 bytes = "1.0"
 log = "0.4"
 futures-lite = "1.11"

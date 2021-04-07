@@ -2,11 +2,10 @@ use super::{
     physics_multiplayer::{PhysicsCommand, PhysicsWorld},
     player::{PlayerId, PlayerInputCommand, PlayerInputState},
 };
+use crate::networking::WrappedNetworkResource;
 use bevy::prelude::*;
-use bevy_prototype_networked_physics::{
-    client::{Client, ClientState},
-    net::NetworkResource,
-};
+use bevy_networking_turbulence::NetworkResource;
+use bevy_prototype_networked_physics::client::{Client, ClientState};
 
 pub const INPUT_RESYNC_INTERVAL: f64 = 3.0;
 
@@ -43,7 +42,7 @@ pub fn player_input_system(
                     player_id,
                     command: PlayerInputCommand::Left(left),
                 },
-                &mut *net,
+                &mut WrappedNetworkResource(&mut *net),
             );
         }
         if resync || right != state.right {
@@ -52,7 +51,7 @@ pub fn player_input_system(
                     player_id,
                     command: PlayerInputCommand::Right(right),
                 },
-                &mut *net,
+                &mut WrappedNetworkResource(&mut *net),
             );
         }
         if resync || jump != state.jump {
@@ -61,7 +60,7 @@ pub fn player_input_system(
                     player_id,
                     command: PlayerInputCommand::Jump(jump),
                 },
-                &mut *net,
+                &mut WrappedNetworkResource(&mut *net),
             );
         }
         if resync || roll != state.roll {
@@ -70,7 +69,7 @@ pub fn player_input_system(
                     player_id,
                     command: PlayerInputCommand::Roll(roll),
                 },
-                &mut *net,
+                &mut WrappedNetworkResource(&mut *net),
             );
         }
     }

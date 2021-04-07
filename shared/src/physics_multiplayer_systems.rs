@@ -12,19 +12,17 @@ use bevy::{
     },
     sprite::SPRITE_PIPELINE_HANDLE,
 };
+use bevy_networking_turbulence::{NetworkEvent, NetworkResource};
 use bevy_prototype_lyon::{
     basic_shapes::{primitive, ShapeType},
     TessellationMode,
 };
-use bevy_prototype_networked_physics::{
-    client::{Client, ClientState},
-    events::ClientConnectionEvent,
-    net::NetworkResource,
-};
+use bevy_prototype_networked_physics::client::{Client, ClientState};
 
 //#[cfg(not(target_arch = "wasm32"))]
 use bevy_prototype_networked_physics::server::Server;
 
+use crate::networking::WrappedNetworkResource;
 use bevy_prototype_transform_tracker::TransformTrackingTarget;
 use lyon::{
     math::point,
@@ -35,29 +33,29 @@ use lyon::{
     },
 };
 use splines::{Interpolation, Key, Spline};
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    convert::TryInto,
+};
 
 #[derive(Default)]
 pub struct SpawnSystemState {
-    client_connection_event_reader: EventReader<ClientConnectionEvent>,
+    network_event_reader: EventReader<NetworkEvent>,
 }
 
 //#[cfg(not(target_arch = "wasm32"))]
 pub fn physics_multiplayer_server_spawn_despawn_system(
     mut state: Local<SpawnSystemState>,
     mut server: ResMut<Server<PhysicsWorld>>,
-    client_connection_events: Res<Events<ClientConnectionEvent>>,
+    network_events: Res<Events<NetworkEvent>>,
     mut net: ResMut<NetworkResource>,
 ) {
-    for client_connection_event in state
-        .client_connection_event_reader
-        .iter(&client_connection_events)
-    {
-        match client_connection_event {
-            ClientConnectionEvent::Connected(client_id) => {
+    for network_event in state.network_event_reader.iter(&network_events) {
+        match network_event {
+            NetworkEvent::Connected(client_id) => {
                 server.issue_command(
                     PhysicsCommand::SpawnPlayer {
-                        player_id: PlayerId(*client_id),
+                        player_id: PlayerId((*client_id).try_into().unwrap()),
                         // TODO: Dynamically chosen...
                         size: 0.6,
                         x: 0.0,
@@ -70,15 +68,16 @@ pub fn physics_multiplayer_server_spawn_despawn_system(
                             _ => unreachable!(),
                         },
                     },
-                    &mut net,
+                    &mut WrappedNetworkResource(&mut net),
                 );
             }
-            ClientConnectionEvent::Disconnected(client_id) => {
+            NetworkEvent::Disconnected(client_id) => {
                 server.issue_command(
-                    PhysicsCommand::DespawnPlayer(PlayerId(*client_id)),
-                    &mut net,
+                    PhysicsCommand::DespawnPlayer(PlayerId((*client_id).try_into().unwrap())),
+                    &mut WrappedNetworkResource(&mut net),
                 );
             }
+            _ => {}
         }
     }
 }

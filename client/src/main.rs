@@ -10,9 +10,6 @@ use wasm_bindgen::prelude::*;
 use web_sys::UrlSearchParams;
 
 use bevy_prototype_frameshader::FrameshaderPlugin;
-use bevy_prototype_networked_physics::{
-    events::ClientConnectionEvent, NetworkedPhysicsClientPlugin,
-};
 use bevy_prototype_transform_tracker::{TransformTrackingFollower, TransformTrackingPlugin};
 
 #[cfg(feature = "debug-fly-camera")]
@@ -29,8 +26,10 @@ use shared::{
     wasm_print_diagnostics_plugin::WasmPrintDiagnosticsPlugin,
 };
 
+pub mod networking;
 pub mod sakura;
 
+use networking::{ClientConnectionEvent, NetworkedPhysicsClientPlugin};
 use sakura::SakuraPlugin;
 
 #[cfg(feature = "web")]

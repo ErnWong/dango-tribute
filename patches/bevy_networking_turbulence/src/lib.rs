@@ -29,7 +29,7 @@ use turbulence::{
     packet_multiplexer::MuxPacketPool,
 };
 pub use turbulence::{
-    message_channels::{MessageChannelMode, MessageChannelSettings},
+    message_channels::{MessageChannelMode, MessageChannelSettings, MessageChannels},
     reliable_channel::Settings as ReliableChannelSettings,
 };
 
