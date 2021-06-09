@@ -9,6 +9,8 @@ keywords = [ "physics", "dynamics", "rigid", "real-time", "joints" ]
 license = "BSD-3-Clause"
 edition = "2018"
 
+[badges]
+maintenance = { status = "passively-maintained" }
 
 [lib]
 name = "nphysics_testbed2d"
@@ -19,23 +21,20 @@ required-features = [ "dim2" ]
 default = [ "dim2" ]
 dim2 = [ ]
 box2d-backend = [ "wrapped2d" ]
-fluids = [ "salva2d" ]
-parallel = [ "salva2d/parallel" ]
 
 
 [dependencies]
 log        = { version = "0.4", optional = true }
 bitflags   = "1"
 num-traits = "0.2"
-rand       = "0.7"
+rand       = "0.8"
 instant    = { version = "0.1", features = [ "stdweb", "now" ]}
-simba      = "0.3"
-nalgebra   = "0.23"
-kiss3d     = { version = "0.27", features = [ "conrod" ] }
-ncollide2d = "0.26"
+simba      = "0.4"
+nalgebra   = "0.26"
+kiss3d     = { version = "0.31", features = [ "conrod" ] }
+ncollide2d = "0.29"
 wrapped2d  = { version = "0.4", optional = true }
-salva2d = { version = "0.4", features = [ "nphysics" ], optional = true }
 
 [dependencies.nphysics2d]
 path = "../nphysics2d"
-version = "0.18"
+version = "0.22"
