@@ -1,6 +1,6 @@
 use bevy::{
     asset::LoadState,
-    diagnostic::{FrameTimeDiagnosticsPlugin, PrintDiagnosticsPlugin},
+    diagnostic::FrameTimeDiagnosticsPlugin,
     prelude::*,
     render::{pass::ClearColor, render_graph::base::BaseRenderGraphConfig},
 };
@@ -26,10 +26,11 @@ use shared::{
     wasm_print_diagnostics_plugin::WasmPrintDiagnosticsPlugin,
 };
 
-pub mod networking;
 pub mod sakura;
 
-use networking::{ClientConnectionEvent, NetworkedPhysicsClientPlugin};
+use crystalorb_bevy_networking_turbulence::{
+    bevy_networking_turbulence::NetworkResource, ClientConnectionEvent, CrystalOrbClientPlugin,
+};
 use sakura::SakuraPlugin;
 
 #[cfg(feature = "web")]
@@ -57,13 +58,12 @@ fn main() {
     // TODO: Fix this by loading all assets from the main setup startup system.
     app.add_startup_system(setup_hot_reloading.system());
 
-    app.add_resource(ClearColor(Color::rgba(0.0, 0.0, 0.0, 0.0)))
-        .add_resource(bevy::log::LogSettings {
+    app.insert_resource(ClearColor(Color::rgba(0.0, 0.0, 0.0, 0.0)))
+        .insert_resource(bevy::log::LogSettings {
             level: bevy::log::Level::INFO,
             ..Default::default()
         })
         .add_plugin(bevy::log::LogPlugin::default())
-        .add_plugin(bevy::reflect::ReflectPlugin::default())
         .add_plugin(bevy::core::CorePlugin::default())
         .add_plugin(bevy::transform::TransformPlugin::default())
         .add_plugin(bevy::diagnostic::DiagnosticsPlugin::default())
@@ -94,29 +94,15 @@ fn main() {
     #[cfg(feature = "web")]
     app.add_plugin(FullViewportPlugin);
 
-    let host_id = UrlSearchParams::new_with_str(
-        &web_sys::window()
-            .expect("should have global window")
-            .location()
-            .search()
-            .expect("should have search string"),
-    )
-    .expect("should parse valid search params")
-    .get("join")
-    .expect("should have host id");
-
-    let endpoint_url = format!("http://dango-daikazoku.herokuapp.com/join/{}", host_id);
-
-    app.add_plugin(NetworkedPhysicsClientPlugin::<PhysicsWorld>::new(
+    app.add_plugin(CrystalOrbClientPlugin::<PhysicsWorld>::new(
         settings::NETWORKED_PHYSICS_CONFIG,
-        endpoint_url,
     ));
 
     // Order is important.
     // The above plugins provide resources for the plugins below.
 
     app.add_plugin(FrameTimeDiagnosticsPlugin::default())
-        .add_plugin(WasmPrintDiagnosticsPlugin::default())
+        //.add_plugin(WasmPrintDiagnosticsPlugin::default())
         .add_plugin(AudioPlugin)
         .add_plugin(FrameshaderPlugin::new(
             VERTEX_SHADER_PATH.into(),
@@ -143,67 +129,51 @@ fn setup_hot_reloading(asset_server: ResMut<AssetServer>) {
 }
 
 fn setup(
-    commands: &mut Commands,
+    mut commands: Commands,
     asset_server: ResMut<AssetServer>,
     audio: Res<Audio>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    mut net: ResMut<NetworkResource>,
 ) {
+    let host_id = UrlSearchParams::new_with_str(
+        &web_sys::window()
+            .expect("should have global window")
+            .location()
+            .search()
+            .expect("should have search string"),
+    )
+    .expect("should parse valid search params")
+    .get("join")
+    .expect("should have host id");
+    let endpoint_url = format!("http://dango-daikazoku.herokuapp.com/join/{}", host_id);
+    info!("Starting client - connecting to {}", endpoint_url);
+    net.connect(endpoint_url);
+
     let bgm = asset_server.load("soundtracks/untitled.ogg");
     audio.play_looped(bgm);
 
     commands
-        .spawn(Camera2point5dBundle {
-            transform: Transform::from_translation(Vec3::unit_z() * 8.0)
-                .looking_at(-Vec3::unit_z(), Vec3::unit_y()),
+        .spawn()
+        .insert_bundle(Camera2point5dBundle {
+            transform: Transform::from_translation(Vec3::Z * 8.0).looking_at(-Vec3::Z, Vec3::Y),
             ..Default::default()
         })
-        .with(TransformTrackingFollower);
-    // .spawn(primitive(
-    //     materials.add(Color::rgb(0.3, 0.7, 1.0).into()),
-    //     &mut meshes,
-    //     ShapeType::Rectangle {
-    //         width: 1000.0,
-    //         height: 1000.0,
-    //     },
-    //     TessellationMode::Fill(&FillOptions::default()),
-    //     Vec3::new(-500.0, 0.0 - 5.0, 0.0),
-    // ))
-    // .spawn(primitive(
-    //     materials.add(Color::rgb(1.0, 0.4, 0.5).into()),
-    //     &mut meshes,
-    //     ShapeType::Rectangle {
-    //         width: 1000.0,
-    //         height: 1000.0,
-    //     },
-    //     TessellationMode::Fill(&FillOptions::default()),
-    //     Vec3::new(-500.0, -1000.0 - 5.0, 0.0),
-    // ));
+        .insert(TransformTrackingFollower);
 
     #[cfg(feature = "debug-fly-camera")]
     commands.with(FlyCamera::default());
 }
 
-#[derive(Default)]
-struct LoadProgressState {
-    audio_asset_event_reader: EventReader<AssetEvent<AudioSource>>,
-    shader_asset_event_reader: EventReader<AssetEvent<Shader>>,
-    client_connection_event_reader: EventReader<ClientConnectionEvent>,
-}
-
 fn test_load_progress_system(
-    mut load_progress_state: Local<LoadProgressState>,
-    audio_asset_events: Res<Events<AssetEvent<AudioSource>>>,
+    audio_asset_events: EventReader<AssetEvent<AudioSource>>,
     audio_sources: Res<Assets<AudioSource>>,
     shaders: Res<Assets<Shader>>,
-    shader_asset_events: Res<Events<AssetEvent<Shader>>>,
+    shader_asset_events: EventReader<AssetEvent<Shader>>,
     asset_server: ResMut<AssetServer>,
-    client_connection_events: Res<Events<ClientConnectionEvent>>,
+    client_connection_events: EventReader<ClientConnectionEvent>,
 ) {
-    for _ in load_progress_state
-        .audio_asset_event_reader
-        .iter(&audio_asset_events)
-    {
+    for _ in audio_asset_events.iter() {
         let mut all_audio_loaded = false;
         for audio_source in audio_sources.ids() {
             // Note: only consider when there's at least one audio source registered.
@@ -219,10 +189,7 @@ fn test_load_progress_system(
         break;
     }
 
-    //for _ in load_progress_state
-    //    .shader_asset_event_reader
-    //    .iter(&shader_asset_events)
-    //{
+    //for _ in shader_asset_events.iter() {
     // let mut all_shaders_loaded = false;
     // info!("Testing shaders {:?}", shaders);
     // for shader in shaders.ids() {
@@ -247,10 +214,7 @@ fn test_load_progress_system(
     // TODO Not all shaders get loaded. To debug. Also - test shader compilation.
     show_load_complete("shaders");
 
-    for client_connection_event in load_progress_state
-        .client_connection_event_reader
-        .iter(&client_connection_events)
-    {
+    for client_connection_event in client_connection_events.iter() {
         if let ClientConnectionEvent::Connected(client_id) = client_connection_event {
             show_load_complete("connection");
             break;
@@ -270,11 +234,8 @@ fn show_load_complete(component_name: &str) {
         .expect("should be able to add a class to span");
 }
 
-fn update_status_system(
-    mut client_connection_event_reader: Local<EventReader<ClientConnectionEvent>>,
-    client_connection_events: Res<Events<ClientConnectionEvent>>,
-) {
-    for client_connection_event in client_connection_event_reader.iter(&client_connection_events) {
+fn update_status_system(client_connection_events: EventReader<ClientConnectionEvent>) {
+    for client_connection_event in client_connection_events.iter() {
         let class_name = match client_connection_event {
             ClientConnectionEvent::Connected(_) => "status-connected",
             ClientConnectionEvent::Disconnected(_) => "status-disconnected",

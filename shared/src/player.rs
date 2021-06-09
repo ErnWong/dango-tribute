@@ -1,6 +1,6 @@
 use crate::settings::RealField;
 use bevy::prelude::*;
-use bevy_prototype_networked_physics::world::DisplayState;
+use crystalorb_bevy_networking_turbulence::crystalorb::world::DisplayState;
 use nphysics2d::{
     math::{Force, ForceType},
     nalgebra::{Point2, Point3, Similarity2, Vector2, Vector3},
@@ -77,7 +77,7 @@ pub struct PlayerSnapshot {
     pub semiderived_collision_state: PlayerCollisionState,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct PlayerDisplayState {
     pub color: Color,
     pub size: f32,
@@ -563,7 +563,8 @@ impl Player {
 }
 
 impl DisplayState for PlayerDisplayState {
-    fn from_interpolation(old_state: &Self, new_state: &Self, t: f32) -> Self {
+    fn from_interpolation(old_state: &Self, new_state: &Self, t_f64: f64) -> Self {
+        let t = t_f64 as f32;
         let mut state = new_state.clone();
 
         // Nonlinearly interpolate the derived mean angles.

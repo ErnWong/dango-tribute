@@ -14,7 +14,7 @@ impl Plugin for Camera2point5dPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.register_type::<ZBasedPerspectiveProjection>()
             .add_system_to_stage(
-                app::stage::POST_UPDATE,
+                CoreStage::PostUpdate,
                 camera::camera_system::<ZBasedPerspectiveProjection>.system(),
             );
     }

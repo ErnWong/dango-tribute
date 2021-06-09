@@ -2,10 +2,12 @@ use super::{
     physics_multiplayer::{PhysicsCommand, PhysicsWorld},
     player::{PlayerId, PlayerInputCommand, PlayerInputState},
 };
-use crate::networking::WrappedNetworkResource;
 use bevy::prelude::*;
-use bevy_networking_turbulence::NetworkResource;
-use bevy_prototype_networked_physics::client::{Client, ClientState};
+use crystalorb_bevy_networking_turbulence::{
+    bevy_networking_turbulence::NetworkResource,
+    crystalorb::client::{stage::StageMut as ClientStageMut, Client},
+    WrappedNetworkResource,
+};
 
 pub const INPUT_RESYNC_INTERVAL: f64 = 3.0;
 
@@ -26,7 +28,7 @@ pub fn player_input_system(
         input.pressed(KeyCode::W) || input.pressed(KeyCode::Space) || input.pressed(KeyCode::Up);
     let roll = input.pressed(KeyCode::LShift) || input.pressed(KeyCode::RShift);
 
-    if let ClientState::Ready(ready_client) = client.state_mut() {
+    if let ClientStageMut::Ready(mut ready_client) = client.stage_mut() {
         let player_id = PlayerId(ready_client.client_id());
 
         let resync = if time.seconds_since_startup() - last_resync.0 > INPUT_RESYNC_INTERVAL {

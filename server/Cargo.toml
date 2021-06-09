@@ -23,20 +23,19 @@ web = [
   "web-sys/Window",
   "web-sys/Url",
   "web-sys/Location",
-  "bevy_networking_turbulence/use-webrtc",
+  "crystalorb-bevy-networking-turbulence/use-webrtc",
 ]
 native = [
   "shared/native",
   "bevy/bevy_wgpu",
-  "bevy_networking_turbulence/use-udp",
+  "crystalorb-bevy-networking-turbulence/use-udp",
 ]
 
 [dependencies]
 shared = {path = "../shared"}
-bevy = {version = "0.4", default-features = false}
-bevy_networking_turbulence = {version = "0.2.0", default-features = false}
-bevy_prototype_networked_physics = {path = "../crates/bevy_prototype_networked_physics", default-features = false}
+bevy = {version = "0.5", default-features = false}
 bevy_prototype_transform_tracker = {path = "../crates/bevy_prototype_transform_tracker"}
+crystalorb-bevy-networking-turbulence = {version = "0.2.0", default-features = false}
 winit = {version = "0.24.0", optional = true}
 wasm-bindgen = "0.2.45"
 web-sys = "0.3.22"

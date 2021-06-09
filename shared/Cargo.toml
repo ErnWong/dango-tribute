@@ -9,23 +9,22 @@ default = [
   "bevy/render",
 ]
 web = [
-  "bevy_networking_turbulence/use-webrtc",
+  "crystalorb-bevy-networking-turbulence/use-webrtc",
 ]
 native = [
-  "bevy_networking_turbulence/use-udp",
+  "crystalorb-bevy-networking-turbulence/use-udp",
 ]
 
 [dependencies]
-bevy = {version = "0.4", default-features = false}
+bevy = {version = "0.5", default-features = false}
 bevy_prototype_lyon = {git = "https://github.com/Nilirad/bevy_prototype_lyon", branch = "master"}
-bevy_networking_turbulence = {version = "0.2.0", default-features = false}
-bevy_prototype_networked_physics = {path = "../crates/bevy_prototype_networked_physics", default-features = false}
 bevy_prototype_transform_tracker = {path = "../crates/bevy_prototype_transform_tracker"}
-nphysics2d = "0.18"
-nalgebra = {version = "0.23.2", features = ["serde-serialize"]}
+crystalorb-bevy-networking-turbulence = {version = "0.2.0", default-features = false}
+nalgebra = {version = "0.27.1", features = ["serde-serialize"]}
+nphysics2d = "0.22"
 lyon = "0.16.2"
 num = "0.3.1"
 rand = "0.8.3"
 serde="1.0.118"
-splines = {version = "3.5.1", features = ["impl-nalgebra"]}
+splines = {git = "https://github.com/phaazon/splines", branch = "dependabot/cargo/master/nalgebra-gte-0.21-and-lt-0.28", features = ["impl-nalgebra"]}
 web_sys = {version = "0.3.22", package = "web-sys", features = ["console"]}

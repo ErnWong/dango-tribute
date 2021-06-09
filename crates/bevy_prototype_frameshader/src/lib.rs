@@ -43,7 +43,14 @@ impl FrameshaderPlugin {
 
 impl Plugin for FrameshaderPlugin {
     fn build(&self, app: &mut AppBuilder) {
-        app.resources_mut().insert(self.clone());
+        app.insert_resource(self.clone());
+
+        // TODO: Is this right? Previously it was located inside get_system, but I can't
+        // remember why it was there.
+        app.insert_resource(InfoBindGroup {
+            bind_group: BindGroup::build().finish(),
+        });
+
         app.add_startup_system(setup_frameshader.system());
     }
 }
@@ -57,10 +64,7 @@ fn setup_pipeline(
         vertex: asset_server.load::<Shader, _>(config.vertex_shader_path.as_str()),
         fragment: Some(asset_server.load::<Shader, _>(config.fragment_shader_path.as_str())),
     }));
-    pipelines
-        .get_mut(&pipeline_handle)
-        .unwrap()
-        .depth_stencil_state = None;
+    pipelines.get_mut(&pipeline_handle).unwrap().depth_stencil = None;
     pipeline_handle
 }
 
@@ -176,11 +180,11 @@ impl FrameshaderNode {
 }
 
 impl SystemNode for FrameshaderNode {
-    fn get_system(&self, commands: &mut Commands) -> Box<dyn System<In = (), Out = ()>> {
-        let system = frameshader_node_system.system();
-        commands.insert_resource(InfoBindGroup {
-            bind_group: BindGroup::build().finish(),
-        });
+    fn get_system(&self) -> Box<dyn System<In = (), Out = ()>> {
+        let system = frameshader_node_system
+            .system()
+            .config(|config| config.0 = Some(self.pipeline_handle.clone()));
+
         Box::new(system)
     }
 }
@@ -190,9 +194,13 @@ struct InfoBindGroup {
 }
 
 fn frameshader_node_system(
+    pipeline_handle: Local<Handle<PipelineDescriptor>>,
     render_resource_context: Res<Box<dyn RenderResourceContext>>,
     mut shared_buffers: ResMut<SharedBuffers>,
     mut info_bind_group: ResMut<InfoBindGroup>,
+    mut pipeline_compiler: ResMut<PipelineCompiler>,
+    mut pipeline_descriptors: ResMut<Assets<PipelineDescriptor>>,
+    mut shaders: ResMut<Assets<Shader>>,
     time: Res<Time>,
     mouse_button: Res<Input<MouseButton>>,
     windows: Res<Windows>,
@@ -214,7 +222,7 @@ fn frameshader_node_system(
             &(time.seconds_since_startup() as f32),
         )
         .unwrap();
-    let (cursor_x, cursor_y) = window.cursor_position().unwrap_or(Vec2::zero()).into();
+    let (cursor_x, cursor_y) = window.cursor_position().unwrap_or(Vec2::ZERO).into();
     let mouse = Vec4::new(
         cursor_x,
         cursor_y,
@@ -230,6 +238,46 @@ fn frameshader_node_system(
         .add_binding(2, time_delta_buffer)
         .add_binding(3, mouse_buffer)
         .finish();
+
+    compile_pipeline_if_needed(
+        &**render_resource_context,
+        &mut pipeline_compiler,
+        &mut pipeline_descriptors,
+        &mut shaders,
+        &pipeline_handle,
+    );
+}
+
+fn compile_pipeline_if_needed(
+    render_resource_context: &dyn RenderResourceContext,
+    pipeline_compiler: &mut PipelineCompiler,
+    pipeline_descriptors: &mut Assets<PipelineDescriptor>,
+    shaders: &mut Assets<Shader>,
+    pipeline_handle: &Handle<PipelineDescriptor>,
+) {
+    let pipeline_descriptor = pipeline_descriptors.get(pipeline_handle).unwrap();
+
+    if shaders
+        .get(pipeline_descriptor.shader_stages.fragment.as_ref().unwrap())
+        .is_some()
+        && shaders
+            .get(pipeline_descriptor.shader_stages.vertex.clone())
+            .is_some()
+    {
+        let pipeline_specialization = Default::default();
+        if pipeline_compiler
+            .get_specialized_pipeline(pipeline_handle, &pipeline_specialization)
+            .is_none()
+        {
+            pipeline_compiler.compile_pipeline(
+                render_resource_context,
+                &mut *pipeline_descriptors,
+                &mut *shaders,
+                pipeline_handle,
+                &pipeline_specialization,
+            );
+        }
+    }
 }
 
 impl Node for FrameshaderNode {
@@ -253,8 +301,7 @@ impl Node for FrameshaderNode {
 
     fn update(
         &mut self,
-        _world: &World,
-        resources: &Resources,
+        world: &World,
         render_context: &mut dyn RenderContext,
         input: &ResourceSlots,
         _output: &mut ResourceSlots,
@@ -270,9 +317,9 @@ impl Node for FrameshaderNode {
             .get_texture()
             .unwrap();
 
-        let mut pipeline_compiler = resources.get_mut::<PipelineCompiler>().unwrap();
-        let mut pipeline_descriptors = resources.get_mut::<Assets<PipelineDescriptor>>().unwrap();
-        let mut shaders = resources.get_mut::<Assets<Shader>>().unwrap();
+        let pipeline_compiler = world.get_resource::<PipelineCompiler>().unwrap();
+        let pipeline_descriptors = world.get_resource::<Assets<PipelineDescriptor>>().unwrap();
+        let shaders = world.get_resource::<Assets<Shader>>().unwrap();
         let pipeline_descriptor = pipeline_descriptors.get(&self.pipeline_handle).unwrap();
 
         if shaders
@@ -306,74 +353,66 @@ impl Node for FrameshaderNode {
         });
 
         let pipeline_specialization = Default::default();
-        let specialized_pipeline_handle = if let Some(handle) = pipeline_compiler
+        if let Some(specialized_pipeline_handle) = pipeline_compiler
             .get_specialized_pipeline(&self.pipeline_handle, &pipeline_specialization)
         {
-            handle
-        } else {
-            pipeline_compiler.compile_pipeline(
-                render_context.resources(),
-                &mut *pipeline_descriptors,
-                &mut *shaders,
-                &self.pipeline_handle,
-                &pipeline_specialization,
-            )
-        };
-        let pipeline_descriptor = pipeline_descriptors
-            .get(specialized_pipeline_handle.clone())
-            .unwrap();
-        let layout = pipeline_descriptor.get_layout().unwrap();
+            let pipeline_descriptor = pipeline_descriptors
+                .get(specialized_pipeline_handle.clone())
+                .unwrap();
+            let layout = pipeline_descriptor.get_layout().unwrap();
 
-        // TODO: enumify this
-        const IMAGE_BIND_GROUP_INDEX: u32 = 0;
-        const INFO_BIND_GROUP_INDEX: u32 = 1;
+            // TODO: enumify this
+            const IMAGE_BIND_GROUP_INDEX: u32 = 0;
+            const INFO_BIND_GROUP_INDEX: u32 = 1;
 
-        let image_bind_group_descriptor = layout.get_bind_group(IMAGE_BIND_GROUP_INDEX).unwrap();
-        let image_bind_group = BindGroup::build()
-            .add_texture(0, source_texture)
-            .add_texture(1, random_texture)
-            .add_sampler(2, self.sampler.unwrap())
-            .finish();
-        render_context
-            .resources()
-            .create_bind_group(image_bind_group_descriptor.id, &image_bind_group);
+            let image_bind_group_descriptor =
+                layout.get_bind_group(IMAGE_BIND_GROUP_INDEX).unwrap();
+            let image_bind_group = BindGroup::build()
+                .add_texture(0, source_texture)
+                .add_texture(1, random_texture)
+                .add_sampler(2, self.sampler.unwrap())
+                .finish();
+            render_context
+                .resources()
+                .create_bind_group(image_bind_group_descriptor.id, &image_bind_group);
 
-        let info_bind_group_descriptor = layout.get_bind_group(INFO_BIND_GROUP_INDEX).unwrap();
-        let info_bind_group = &resources.get::<InfoBindGroup>().unwrap().bind_group;
-        render_context
-            .resources()
-            .create_bind_group(info_bind_group_descriptor.id, info_bind_group);
+            let info_bind_group_descriptor = layout.get_bind_group(INFO_BIND_GROUP_INDEX).unwrap();
+            let info_bind_group = &world.get_resource::<InfoBindGroup>().unwrap().bind_group;
+            render_context
+                .resources()
+                .create_bind_group(info_bind_group_descriptor.id, info_bind_group);
 
-        // Update pass descriptor to reflect current texture Ids from the input slots.
-        self.pass_descriptor.color_attachments[0].attachment = TextureAttachment::Id(
-            input
-                .get(FrameshaderNode::IN_TARGET_COLOR_TEXTURE_INDEX)
-                .unwrap()
-                .get_texture()
-                .unwrap(),
-        );
+            // Update pass descriptor to reflect current texture Ids from the input slots.
+            self.pass_descriptor.color_attachments[0].attachment = TextureAttachment::Id(
+                input
+                    .get(FrameshaderNode::IN_TARGET_COLOR_TEXTURE_INDEX)
+                    .unwrap()
+                    .get_texture()
+                    .unwrap(),
+            );
 
-        let render_resource_bindings = resources.get::<RenderResourceBindings>().unwrap();
+            let render_resource_bindings = world.get_resource::<RenderResourceBindings>().unwrap();
 
-        render_context.begin_pass(
-            &self.pass_descriptor,
-            &render_resource_bindings,
-            &mut |render_pass| {
-                render_pass.set_pipeline(&specialized_pipeline_handle);
-                render_pass.set_bind_group(
-                    IMAGE_BIND_GROUP_INDEX,
-                    image_bind_group_descriptor.id,
-                    image_bind_group.id,
-                    None,
-                );
-                render_pass.set_bind_group(
-                    INFO_BIND_GROUP_INDEX,
-                    info_bind_group_descriptor.id,
-                    info_bind_group.id,
-                    None,
-                );
-                render_pass.draw(0..6, 0..1);
-            },
-        );
+            render_context.begin_pass(
+                &self.pass_descriptor,
+                &render_resource_bindings,
+                &mut |render_pass| {
+                    render_pass.set_pipeline(&specialized_pipeline_handle);
+                    render_pass.set_bind_group(
+                        IMAGE_BIND_GROUP_INDEX,
+                        image_bind_group_descriptor.id,
+                        image_bind_group.id,
+                        None,
+                    );
+                    render_pass.set_bind_group(
+                        INFO_BIND_GROUP_INDEX,
+                        info_bind_group_descriptor.id,
+                        info_bind_group.id,
+                        None,
+                    );
+                    render_pass.draw(0..6, 0..1);
+                },
+            );
+        }
     }
 }

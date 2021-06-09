@@ -8,7 +8,8 @@ use bevy::{
     app::prelude::*,
     core::{Time, Timer},
     diagnostic::{Diagnostic, DiagnosticId, Diagnostics},
-    ecs::{IntoSystem, Res, ResMut},
+    ecs::prelude::*,
+    //ecs::{IntoSystem, Res, ResMut},
     utils::Duration,
 };
 
@@ -41,18 +42,21 @@ impl Default for WasmPrintDiagnosticsPlugin {
 
 impl Plugin for WasmPrintDiagnosticsPlugin {
     fn build(&self, app: &mut bevy::app::AppBuilder) {
-        app.add_resource(WasmPrintDiagnosticsState {
+        app.insert_resource(WasmPrintDiagnosticsState {
             timer: Timer::new(self.wait_duration, true),
             filter: self.filter.clone(),
         });
 
         if self.debug {
             app.add_system_to_stage(
-                stage::POST_UPDATE,
+                CoreStage::PostUpdate,
                 Self::print_diagnostics_debug_system.system(),
             );
         } else {
-            app.add_system_to_stage(stage::POST_UPDATE, Self::print_diagnostics_system.system());
+            app.add_system_to_stage(
+                CoreStage::PostUpdate,
+                Self::print_diagnostics_system.system(),
+            );
         }
     }
 }
@@ -83,7 +87,7 @@ impl WasmPrintDiagnosticsPlugin {
         time: Res<Time>,
         diagnostics: Res<Diagnostics>,
     ) {
-        if state.timer.tick(time.delta_seconds()).finished() {
+        if state.timer.tick(time.delta()).finished() {
             console_log!("Diagnostics:");
             console_log!("{}", "-".repeat(93));
             if let Some(ref filter) = state.filter {
@@ -103,7 +107,7 @@ impl WasmPrintDiagnosticsPlugin {
         time: Res<Time>,
         diagnostics: Res<Diagnostics>,
     ) {
-        if state.timer.tick(time.delta_seconds()).finished() {
+        if state.timer.tick(time.delta()).finished() {
             console_log!("Diagnostics (Debug):");
             console_log!("{}", "-".repeat(93));
             if let Some(ref filter) = state.filter {

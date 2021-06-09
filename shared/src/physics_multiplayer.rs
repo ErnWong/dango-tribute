@@ -4,7 +4,7 @@ use crate::{
     settings::RealField,
 };
 use bevy::prelude::*;
-use bevy_prototype_networked_physics::{
+use crystalorb_bevy_networking_turbulence::crystalorb::{
     command::Command,
     fixed_timestepper::Stepper,
     world::{DisplayState, World},
@@ -52,7 +52,7 @@ pub struct PhysicsSnapshot {
 }
 
 //#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct PhysicsDisplayState {
     players: HashMap<PlayerId, PlayerDisplayState>,
 }
@@ -74,7 +74,7 @@ impl Default for PhysicsWorld {
 
         physics_world
             .mechanical_world
-            .set_timestep(settings::TIMESTEP);
+            .set_timestep(settings::TIMESTEP as f32);
 
         // TODO: Source from a scene.
         let ground = physics_world.bodies.insert(Ground::new());
@@ -187,7 +187,7 @@ impl World for PhysicsWorld {
 }
 
 impl Stepper for PhysicsWorld {
-    fn step(&mut self) -> f32 {
+    fn step(&mut self) {
         for player in &mut self.players.values_mut() {
             player.pre_step(self.mechanical_world.timestep(), &mut self.bodies);
         }
@@ -201,7 +201,6 @@ impl Stepper for PhysicsWorld {
         for player in &mut self.players.values_mut() {
             player.post_step(&self.colliders, &self.geometrical_world);
         }
-        self.mechanical_world.timestep()
     }
 }
 
@@ -214,7 +213,7 @@ impl PhysicsDisplayState {
 }
 
 impl DisplayState for PhysicsDisplayState {
-    fn from_interpolation(old_state: &Self, new_state: &Self, t: f32) -> Self {
+    fn from_interpolation(old_state: &Self, new_state: &Self, t: f64) -> Self {
         let mut players = HashMap::new();
 
         // Use the new state as the overall structure.

@@ -13,7 +13,7 @@ impl Plugin for SakuraPlugin {
 }
 
 pub fn spawn_sakura(
-    commands: &mut Commands,
+    mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
@@ -63,17 +63,17 @@ pub fn spawn_sakura(
             .gen_range((-DISTANCE - THICKNESS * 0.5)..(-DISTANCE + THICKNESS * 0.5));
 
         let transform = Transform {
-            translation: Vec3::unit_z() * z,
+            translation: Vec3::Z * z,
             rotation: Quat::default(),
-            scale: Vec3::one(),
+            scale: Vec3::ONE,
         };
 
         let brightness = rand::thread_rng().gen_range(0.5..1.0);
         let color = Color::rgb(1.0 * brightness, 0.4 * brightness, 0.5 * brightness);
 
-        commands.spawn(SpriteBundle {
+        commands.spawn().insert_bundle(SpriteBundle {
             sprite: Sprite {
-                size: Vec2::one(),
+                size: Vec2::ONE,
                 ..Default::default()
             },
             mesh: leaf_mesh_handle.clone(),
@@ -109,9 +109,9 @@ pub fn spawn_sakura(
         };
         let brightness = rand::thread_rng().gen_range(0.7..1.0);
         let color = Color::rgb(0.4 * brightness, 0.1 * brightness, 0.2 * brightness);
-        commands.spawn(SpriteBundle {
+        commands.spawn().insert_bundle(SpriteBundle {
             sprite: Sprite {
-                size: Vec2::one(),
+                size: Vec2::ONE,
                 ..Default::default()
             },
             mesh: trunk_mesh_handle.clone(),
@@ -137,16 +137,16 @@ pub fn spawn_sakura(
     // ground_mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0; 4]; 4]);
     // ground_mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0; 4]; 4]);
     // let ground_mesh_handle = meshes.add(ground_mesh);
-    // commands.spawn(SpriteBundle {
+    // commands.spawn().insert_bundle(SpriteBundle {
     //     sprite: Sprite {
-    //         size: Vec2::one(),
+    //         size: Vec2::ONE,
     //         ..Default::default()
     //     },
     //     mesh: ground_mesh_handle.clone(),
     //     material: materials.add(Color::rgb(0.3, 0.3, 0.3).into()),
 
     //     // NOTE: We offset by -distance so it stays behind other objects in the scene.
-    //     transform: Transform::from_translation(Vec3::unit_z() * (-DISTANCE)),
+    //     transform: Transform::from_translation(Vec3::Z * (-DISTANCE)),
 
     //     ..Default::default()
     // });

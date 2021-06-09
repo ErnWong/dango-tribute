@@ -1,10 +1,9 @@
-use bevy::{
-    app::ScheduleRunnerSettings,
-    diagnostic::{FrameTimeDiagnosticsPlugin, PrintDiagnosticsPlugin},
-    prelude::*,
-};
-use bevy_networking_turbulence::NetworkEvent;
+use bevy::{app::ScheduleRunnerSettings, diagnostic::FrameTimeDiagnosticsPlugin, prelude::*};
 use bevy_prototype_transform_tracker::TransformTrackingFollower;
+use crystalorb_bevy_networking_turbulence::{
+    bevy_networking_turbulence::{NetworkEvent, NetworkResource},
+    CrystalOrbServerPlugin,
+};
 use shared::{
     physics_multiplayer::PhysicsWorld, physics_multiplayer_systems, settings,
     wasm_print_diagnostics_plugin::WasmPrintDiagnosticsPlugin,
@@ -12,10 +11,6 @@ use shared::{
 use std::time::Duration;
 use wasm_bindgen::prelude::*;
 use web_sys::Url;
-
-pub mod networking;
-
-use networking::NetworkedPhysicsServerPlugin;
 
 // const SHOW_DEBUG_WINDOW: bool = false;
 
@@ -30,12 +25,11 @@ fn main() {
     // TODO: Fix this by loading all assets from the main setup startup system.
     app.add_startup_system(setup_hot_reloading.system());
 
-    app.add_resource(bevy::log::LogSettings {
+    app.insert_resource(bevy::log::LogSettings {
         level: bevy::log::Level::INFO,
         ..Default::default()
     })
     .add_plugin(bevy::log::LogPlugin::default())
-    .add_plugin(bevy::reflect::ReflectPlugin::default())
     .add_plugin(bevy::core::CorePlugin::default())
     .add_plugin(bevy::diagnostic::DiagnosticsPlugin::default())
     .add_plugin(bevy::asset::AssetPlugin::default())
@@ -55,22 +49,21 @@ fn main() {
     //         .add_plugin(bevy::winit::WinitPlugin::default())
     //         .add_plugin(bevy::wgpu::WgpuPlugin::default());
     // } else {
-    app.add_resource(ScheduleRunnerSettings::run_loop(Duration::from_secs_f32(
+    app.insert_resource(ScheduleRunnerSettings::run_loop(Duration::from_secs_f32(
         1.0 / 60.0,
     )))
     .add_plugin(bevy::app::ScheduleRunnerPlugin::default());
     // }
 
-    app.add_plugin(NetworkedPhysicsServerPlugin::<PhysicsWorld>::new(
+    app.add_plugin(CrystalOrbServerPlugin::<PhysicsWorld>::new(
         settings::NETWORKED_PHYSICS_CONFIG,
-        "ws://dango-daikazoku.herokuapp.com/host".to_string(),
     ));
 
     // Order is important.
     // The above plugins provide resources for the plugins below.
 
     app.add_plugin(FrameTimeDiagnosticsPlugin::default())
-        .add_plugin(WasmPrintDiagnosticsPlugin::default())
+        //.add_plugin(WasmPrintDiagnosticsPlugin::default())
         .add_system(show_shareable_url_system.system())
         .add_system(
             physics_multiplayer_systems::physics_multiplayer_server_spawn_despawn_system.system(),
@@ -90,29 +83,27 @@ fn setup_hot_reloading(asset_server: ResMut<AssetServer>) {
     asset_server.watch_for_changes().unwrap();
 }
 
-fn debug_window_setup(commands: &mut Commands) {
+fn setup(mut net: NetworkResource) {
+    let endpoint_url = "ws://dango-daikazoku.herokuapp.com/host".to_string();
+    info!("Starting server - listening at {}", endpoint_url);
+    net.listen(endpoint_url);
+}
+
+fn debug_window_setup(mut commands: Commands) {
     commands
-        .spawn(Camera2dBundle {
+        .spawn_bundle(OrthographicCameraBundle {
             transform: Transform {
                 scale: Vec3::one() / 60.0,
                 translation: Vec3::unit_z() * (1000.0 / 60.0 - 0.1),
                 rotation: Default::default(),
             },
-            ..Default::default()
+            ..OrthographicCameraBundle::new_2d()
         })
-        .with(TransformTrackingFollower);
+        .insert(TransformTrackingFollower);
 }
 
-#[derive(Default)]
-pub struct ShowHostIdState {
-    network_event_reader: EventReader<NetworkEvent>,
-}
-
-fn show_shareable_url_system(
-    mut state: Local<ShowHostIdState>,
-    network_events: Res<Events<NetworkEvent>>,
-) {
-    for network_event in state.network_event_reader.iter(&network_events) {
+fn show_shareable_url_system(network_events: EventReader<NetworkEvent>) {
+    for network_event in network_events.iter() {
         if let NetworkEvent::Hosted(endpoint_id) = network_event {
             info!("Found endpoint id");
             let relative_url = format!("../client/?join={}", endpoint_id);

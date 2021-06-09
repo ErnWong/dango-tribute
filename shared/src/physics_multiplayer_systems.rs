@@ -12,17 +12,19 @@ use bevy::{
     },
     sprite::SPRITE_PIPELINE_HANDLE,
 };
-use bevy_networking_turbulence::{NetworkEvent, NetworkResource};
 use bevy_prototype_lyon::{
     basic_shapes::{primitive, ShapeType},
     TessellationMode,
 };
-use bevy_prototype_networked_physics::client::{Client, ClientState};
+use crystalorb_bevy_networking_turbulence::{
+    bevy_networking_turbulence::{NetworkEvent, NetworkResource},
+    crystalorb::{
+        client::{stage::Stage as ClientStage, Client},
+        server::Server,
+    },
+    WrappedNetworkResource,
+};
 
-//#[cfg(not(target_arch = "wasm32"))]
-use bevy_prototype_networked_physics::server::Server;
-
-use crate::networking::WrappedNetworkResource;
 use bevy_prototype_transform_tracker::TransformTrackingTarget;
 use lyon::{
     math::point,
@@ -38,19 +40,13 @@ use std::{
     convert::TryInto,
 };
 
-#[derive(Default)]
-pub struct SpawnSystemState {
-    network_event_reader: EventReader<NetworkEvent>,
-}
-
 //#[cfg(not(target_arch = "wasm32"))]
 pub fn physics_multiplayer_server_spawn_despawn_system(
-    mut state: Local<SpawnSystemState>,
     mut server: ResMut<Server<PhysicsWorld>>,
-    network_events: Res<Events<NetworkEvent>>,
+    mut network_events: EventReader<NetworkEvent>,
     mut net: ResMut<NetworkResource>,
 ) {
-    for network_event in state.network_event_reader.iter(&network_events) {
+    for network_event in network_events.iter() {
         match network_event {
             NetworkEvent::Connected(client_id) => {
                 server.issue_command(
@@ -121,14 +117,14 @@ const SHADOW_Z_OFFSET: f32 = 1.0;
 
 pub fn physics_multiplayer_client_sync_system(
     mut player_map: Local<PlayerMap>,
-    commands: &mut Commands,
+    mut commands: Commands,
     client: Res<Client<PhysicsWorld>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     meshes: ResMut<Assets<Mesh>>,
     query: Query<(&PlayerComponent, &Handle<Mesh>, &OutlineMesh, &Shadow)>,
     transform_query: Query<&mut Transform>,
 ) {
-    if let ClientState::Ready(ready_client) = client.state() {
+    if let ClientStage::Ready(ready_client) = client.stage() {
         sync_from_state(
             ready_client.display_state(),
             PlayerId(ready_client.client_id()),
@@ -146,7 +142,7 @@ pub fn physics_multiplayer_client_sync_system(
 #[cfg(not(target_arch = "wasm32"))]
 pub fn physics_multiplayer_server_diagnostic_sync_system(
     mut player_map: Local<PlayerMap>,
-    commands: &mut Commands,
+    mut commands: Commands,
     server: Res<Server<PhysicsWorld>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     meshes: ResMut<Assets<Mesh>>,
@@ -170,11 +166,11 @@ fn sync_from_state(
     world_state: &PhysicsDisplayState,
     player_to_track: PlayerId,
     player_map: &mut PlayerMap,
-    commands: &mut Commands,
+    mut commands: Commands,
     materials: &mut Assets<ColorMaterial>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut query: Query<(&PlayerComponent, &Handle<Mesh>, &OutlineMesh, &Shadow)>,
-    transform_query: Query<&mut Transform>,
+    mut transform_query: Query<&mut Transform>,
     draw_mode: DrawMode,
 ) {
     let new_player_states = world_state.players();
@@ -242,9 +238,10 @@ fn sync_from_state(
             draw_mode,
         );
         let entity = commands
-            .spawn(PlayerBundle {
+            .spawn()
+            .insert_bundle(PlayerBundle {
                 sprite: Sprite {
-                    size: Vec2::one(),
+                    size: Vec2::ONE,
                     ..Default::default()
                 },
                 mesh: mesh_handle,
@@ -267,12 +264,12 @@ fn sync_from_state(
                     &mut meshes,
                 ),
             })
-            .current_entity()
-            .unwrap();
+            .id();
         commands
-            .spawn(SpriteBundle {
+            .spawn()
+            .insert_bundle(SpriteBundle {
                 sprite: Sprite {
-                    size: Vec2::one(),
+                    size: Vec2::ONE,
                     ..Default::default()
                 },
                 mesh: left_eye_mesh_handle.clone(),
@@ -280,10 +277,12 @@ fn sync_from_state(
                 transform: Transform::from_translation(Vec3::new(-0.2, 0.3, 0.5)),
                 ..Default::default()
             })
-            .with(Parent(entity))
-            .spawn(SpriteBundle {
+            .insert(Parent(entity));
+        commands
+            .spawn()
+            .insert_bundle(SpriteBundle {
                 sprite: Sprite {
-                    size: Vec2::one(),
+                    size: Vec2::ONE,
                     ..Default::default()
                 },
                 mesh: right_eye_mesh_handle.clone(),
@@ -291,10 +290,12 @@ fn sync_from_state(
                 transform: Transform::from_translation(Vec3::new(0.2, 0.3, 0.5)),
                 ..Default::default()
             })
-            .with(Parent(entity))
-            .spawn(SpriteBundle {
+            .insert(Parent(entity));
+        commands
+            .spawn()
+            .insert_bundle(SpriteBundle {
                 sprite: Sprite {
-                    size: Vec2::one(),
+                    size: Vec2::ONE,
                     ..Default::default()
                 },
                 mesh: outline_mesh_handle.0,
@@ -318,11 +319,12 @@ fn sync_from_state(
                 transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.5)),
                 global_transform: GlobalTransform::default(),
             })
-            .with(Parent(entity));
+            .insert(Parent(entity));
         let shadow_entity = commands
-            .spawn(SpriteBundle {
+            .spawn()
+            .insert_bundle(SpriteBundle {
                 sprite: Sprite {
-                    size: Vec2::one(),
+                    size: Vec2::ONE,
                     ..Default::default()
                 },
                 mesh: shadow_mesh_handle.clone(),
@@ -346,12 +348,11 @@ fn sync_from_state(
                 transform: shadow_transform,
                 global_transform: GlobalTransform::default(),
             })
-            .current_entity()
-            .unwrap();
-        commands.insert_one(entity, Shadow(shadow_entity));
+            .id();
+        commands.entity(entity).insert(Shadow(shadow_entity));
 
         if *player_id == player_to_track {
-            commands.insert_one(entity, TransformTrackingTarget);
+            commands.entity(entity).insert(TransformTrackingTarget);
         }
 
         player_map.0.insert(*player_id, entity);
@@ -361,9 +362,9 @@ fn sync_from_state(
         info!("Despawning player {:?}", player_id);
         let entity = player_map.0.remove(player_id).unwrap();
         if let Ok(shadow_entity) = query.get_component::<Shadow>(entity) {
-            commands.despawn_recursive(shadow_entity.0);
+            commands.entity(shadow_entity.0).despawn_recursive();
         }
-        commands.despawn_recursive(entity);
+        commands.entity(entity).despawn_recursive();
     }
 
     for (player_id, player_state) in new_player_states {
@@ -371,8 +372,8 @@ fn sync_from_state(
         // SAFE: Shadow and it's shadow caster are different entities, so no aliasing occurs.
         if let Ok((_, mesh_handle, outline_mesh_handle, shadow)) = query.get_mut(*entity) {
             unsafe {
-                if let Ok(mut transform) = transform_query.get_unsafe(*entity) {
-                    if let Ok(mut shadow_transform) = transform_query.get_unsafe(shadow.0) {
+                if let Ok(mut transform) = transform_query.get_unchecked(*entity) {
+                    if let Ok(mut shadow_transform) = transform_query.get_unchecked(shadow.0) {
                         trace!("Updating player {:?}", player_id);
                         update_transform(
                             &mut transform,
@@ -416,7 +417,7 @@ fn update_transform(
     transform.translation.z = -(player_id.0 as f32) * PLAYER_Z_SPACE / MAX_PLAYERS;
     transform.rotation = Quat::from_rotation_z(player_state.measurements.mean_angle);
 
-    shadow_transform.scale = Vec3::one() * player_state.size;
+    shadow_transform.scale = Vec3::ONE * player_state.size;
     shadow_transform.translation.x = transform.translation.x;
     shadow_transform.translation.z =
         transform.translation.z - SHADOW_Z_OFFSET * shadow_transform.scale.z;
