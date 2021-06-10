@@ -1,15 +1,17 @@
-use crate::renderer::WebGL2RenderContext;
-use crate::{gl_call, renderer::*, Buffer};
-use bevy::asset::Handle;
+use crate::{gl_call, renderer::*, Buffer, ScissorsState};
 use bevy::render::{
     pass::RenderPass,
-    pipeline::{BindGroupDescriptorId, BlendFactor, BlendOperation, CullMode, PipelineDescriptor},
+    pipeline::{
+        BindGroupDescriptorId, BlendFactor, BlendOperation, CullMode, FrontFace, IndexFormat,
+        PipelineDescriptor,
+    },
     renderer::{BindGroupId, BufferId, BufferUsage, RenderContext},
 };
+use bevy::{asset::Handle, render::pipeline::PrimitiveTopology};
 use std::ops::Range;
+
 pub struct WebGL2RenderPass<'a> {
     pub render_context: &'a WebGL2RenderContext,
-    pub pipeline_descriptor: Option<&'a PipelineDescriptor>,
     pub pipeline: Option<Handle<PipelineDescriptor>>,
 }
 
@@ -53,14 +55,26 @@ impl<'a> WebGL2RenderPass<'a> {
         for attr_descr in vertex_buffer_descriptor.attributes.iter() {
             if attr_descr.attrib_location >= 0 {
                 gl_call!(gl.enable_vertex_attrib_array(attr_descr.attrib_location as u32 as u32));
-                gl_call!(gl.vertex_attrib_pointer_with_i32(
-                    attr_descr.attrib_location as u32,
-                    attr_descr.format.nr_of_components,
-                    attr_descr.format.format,
-                    attr_descr.format.normalized,
-                    vertex_buffer_descriptor.stride,
-                    attr_descr.offset,
-                ));
+                if attr_descr.format.format == Gl::FLOAT
+                    || attr_descr.format.format == Gl::HALF_FLOAT
+                {
+                    gl_call!(gl.vertex_attrib_pointer_with_i32(
+                        attr_descr.attrib_location as u32,
+                        attr_descr.format.nr_of_components,
+                        attr_descr.format.format,
+                        attr_descr.format.normalized,
+                        vertex_buffer_descriptor.stride,
+                        attr_descr.offset,
+                    ));
+                } else {
+                    gl_call!(gl.vertex_attrib_i_pointer_with_i32(
+                        attr_descr.attrib_location as u32,
+                        attr_descr.format.nr_of_components,
+                        attr_descr.format.format,
+                        vertex_buffer_descriptor.stride,
+                        attr_descr.offset,
+                    ));
+                }
             }
         }
     }
@@ -70,8 +84,35 @@ impl<'a> RenderPass for WebGL2RenderPass<'a> {
     fn get_render_context(&self) -> &dyn RenderContext {
         self.render_context
     }
-    fn set_scissor_rect(&mut self, _: u32, _: u32, _: u32, _: u32) {
-        todo!();
+    fn set_scissor_rect(&mut self, x: u32, y: u32, w: u32, h: u32) {
+        let pipeline_handle = self.pipeline.as_ref().unwrap();
+        let mut pipelines = self
+            .render_context
+            .render_resource_context
+            .resources
+            .pipelines
+            .write();
+        let pipeline = pipelines.get_mut(pipeline_handle).unwrap();
+
+        let gl = &self.render_context.device.get_context();
+
+        // TODO - there might be a better way to get a viewport size (make WindowDescriptor available in RenderPass?)
+        let viewport: js_sys::Int32Array = gl_call!(gl.get_parameter(Gl::VIEWPORT))
+            .unwrap()
+            .dyn_into()
+            .unwrap();
+        let viewport_height = viewport.get_index(3);
+
+        let (x, y, w, h) = (
+            x as i32,
+            viewport_height - (y + h) as i32,
+            w as i32,
+            h as i32,
+        );
+        pipeline.scissors_state = Some(ScissorsState { x, y, w, h });
+
+        gl_call!(gl.enable(Gl::SCISSOR_TEST));
+        gl_call!(gl.scissor(x as i32, y as i32, w as i32, h as i32));
     }
     fn set_vertex_buffer(&mut self, _start_slot: u32, buffer_id: BufferId, _offset: u64) {
         // TODO - start_slot and offset parameters
@@ -86,22 +127,17 @@ impl<'a> RenderPass for WebGL2RenderPass<'a> {
         }
     }
 
-    fn set_viewport(
-        &mut self,
-        _x: f32,
-        _y: f32,
-        _w: f32,
-        _h: f32,
-        _min_depth: f32,
-        _max_depth: f32,
-    ) {
-        panic!("not implemented");
+    fn set_viewport(&mut self, x: f32, y: f32, w: f32, h: f32, _min_depth: f32, _max_depth: f32) {
+        let ctx = &self.render_context;
+        let gl = &ctx.device.get_context();
+        gl_call!(gl.viewport(x as i32, y as i32, w as i32, h as i32));
     }
 
     fn set_stencil_reference(&mut self, _reference: u32) {}
 
-    fn set_index_buffer(&mut self, buffer_id: BufferId, _offset: u64) {
+    fn set_index_buffer(&mut self, buffer_id: BufferId, _offset: u64, index_format: IndexFormat) {
         // TODO - offset parameter
+        // TODO - index_format parameter
 
         let resources = &self.render_context.render_resource_context.resources;
         let mut pipelines = resources.pipelines.write();
@@ -110,31 +146,68 @@ impl<'a> RenderPass for WebGL2RenderPass<'a> {
 
         if pipeline.index_buffer != Some(buffer_id) {
             pipeline.index_buffer = Some(buffer_id);
+            pipeline.index_format = index_format;
             pipeline.update_vao = true;
         }
     }
 
     fn draw_indexed(&mut self, indices: Range<u32>, _base_vertex: i32, instances: Range<u32>) {
+        // mysterious "Parking not supported on this platform" panic if you let this code
+        // out of its block.
+        let (primitives, (index_type, type_size)) = {
+            let resources = &self.render_context.render_resource_context.resources;
+            let pipelines = resources.pipelines.read();
+            let pipeline_handle = self.pipeline.as_ref().unwrap();
+            let pipeline = pipelines.get(&pipeline_handle).unwrap();
+
+            let primitives = match pipeline.primitive.topology {
+                PrimitiveTopology::PointList => Gl::POINTS,
+                PrimitiveTopology::LineList => Gl::LINES,
+                PrimitiveTopology::LineStrip => Gl::LINE_STRIP,
+                PrimitiveTopology::TriangleList => Gl::TRIANGLES,
+                PrimitiveTopology::TriangleStrip => Gl::TRIANGLE_STRIP,
+            };
+
+            (
+                primitives,
+                match pipeline.index_format {
+                    IndexFormat::Uint16 => (Gl::UNSIGNED_SHORT, 2),
+                    IndexFormat::Uint32 => (Gl::UNSIGNED_INT, 4),
+                },
+            )
+        };
+
         let ctx = &self.render_context;
         let gl = &ctx.device.get_context();
         self.setup_vao();
         gl_call!(gl.draw_elements_instanced_with_i32(
-            Gl::TRIANGLES,
-            indices.end as i32,
-            Gl::UNSIGNED_INT,
-            indices.start as i32,
-            instances.end as i32,
+            primitives,
+            (indices.end - indices.start) as i32,
+            index_type,
+            indices.start as i32 * type_size,
+            (instances.end - instances.start) as i32,
         ));
         let gl_null = None;
         gl_call!(gl.bind_vertex_array(gl_null));
     }
 
     fn draw(&mut self, vertices: Range<u32>, _instances: Range<u32>) {
+        let resources = &self.render_context.render_resource_context.resources;
+        let pipelines = resources.pipelines.read();
+        let pipeline_handle = self.pipeline.as_ref().unwrap();
+        let pipeline = pipelines.get(&pipeline_handle).unwrap();
         let ctx = &self.render_context;
         let gl = &ctx.device.get_context();
         self.setup_vao();
+        let primitives = match pipeline.primitive.topology {
+            PrimitiveTopology::PointList => Gl::POINTS,
+            PrimitiveTopology::LineList => Gl::LINES,
+            PrimitiveTopology::LineStrip => Gl::LINE_STRIP,
+            PrimitiveTopology::TriangleList => Gl::TRIANGLES,
+            PrimitiveTopology::TriangleStrip => Gl::TRIANGLE_STRIP,
+        };
         gl_call!(gl.draw_arrays(
-            Gl::TRIANGLES,
+            primitives,
             vertices.start as i32,
             (vertices.end - vertices.start) as i32
         ));
@@ -162,8 +235,9 @@ impl<'a> RenderPass for WebGL2RenderPass<'a> {
                     buffer,
                     range,
                 } => {
-                    let offset =
-                        dynamic_uniform_indices.map_or(range.start as u32, |indices| indices[i]);
+                    let offset = *dynamic_uniform_indices
+                        .and_then(|indices| indices.get(i))
+                        .unwrap_or(&(range.start as u32));
                     let buffer = buffers.get(&buffer).unwrap();
                     let size = if buffer.info.buffer_usage.contains(BufferUsage::STORAGE) {
                         STORAGE_BUFFER_SIZE
@@ -188,8 +262,10 @@ impl<'a> RenderPass for WebGL2RenderPass<'a> {
                 } => {
                     // it seems it may not work
                     // (forcing texture_unit=1 do not work properly)
-                    gl_call!(gl.active_texture(Gl::TEXTURE0 + texture_unit));
-                    gl_call!(gl.bind_texture(Gl::TEXTURE_2D, Some(textures.get(texture).unwrap())))
+                    if let Some(texture) = textures.get(texture) {
+                        gl_call!(gl.active_texture(Gl::TEXTURE0 + texture_unit));
+                        gl_call!(gl.bind_texture(Gl::TEXTURE_2D, Some(texture)));
+                    }
                 }
                 crate::WebGL2RenderResourceBinding::Sampler(_) => {
                     // TODO
@@ -208,25 +284,29 @@ impl<'a> RenderPass for WebGL2RenderPass<'a> {
         let ctx = self.render_context;
         let gl = &ctx.device.get_context();
 
-        if let Some(state) = &pipeline.rasterization_state {
-            match state.cull_mode {
-                CullMode::None => {
-                    // TODO - can we always keep CULL_FACE enabled
-                    // and use cullFace(FRONT_AND_BACK)?
-                    // it seems do not work on contributors example
-                    gl_call!(gl.disable(Gl::CULL_FACE));
-                }
-                CullMode::Front => {
-                    gl_call!(gl.enable(Gl::CULL_FACE));
-                    gl_call!(gl.cull_face(Gl::FRONT));
-                }
-                CullMode::Back => {
-                    gl_call!(gl.enable(Gl::CULL_FACE));
-                    gl_call!(gl.cull_face(Gl::BACK));
-                }
+        match &pipeline.primitive.cull_mode {
+            CullMode::None => {
+                // TODO - can we always keep CULL_FACE enabled
+                // and use cullFace(FRONT_AND_BACK)?
+                // it seems do not work on contributors example
+                gl_call!(gl.disable(Gl::CULL_FACE));
+            }
+            CullMode::Front => {
+                gl_call!(gl.enable(Gl::CULL_FACE));
+                gl_call!(gl.cull_face(Gl::FRONT));
+            }
+            CullMode::Back => {
+                gl_call!(gl.enable(Gl::CULL_FACE));
+                gl_call!(gl.cull_face(Gl::BACK));
             }
         }
-        if let Some(state) = &pipeline.depth_stencil_state {
+
+        match &pipeline.primitive.front_face {
+            FrontFace::Cw => gl_call!(gl.front_face(Gl::CW)),
+            FrontFace::Ccw => gl_call!(gl.front_face(Gl::CCW)),
+        }
+
+        if let Some(state) = &pipeline.depth_stencil {
             let depth_func = match state.depth_compare {
                 bevy::render::pipeline::CompareFunction::Never => Gl::NEVER,
                 bevy::render::pipeline::CompareFunction::Less => Gl::LESS,
@@ -240,7 +320,7 @@ impl<'a> RenderPass for WebGL2RenderPass<'a> {
             gl_call!(gl.depth_func(depth_func));
         }
 
-        if let Some(state) = pipeline.color_states.get(0) {
+        if let Some(state) = pipeline.color_target_states.get(0) {
             gl_call!(gl.enable(Gl::BLEND));
             fn blend_factor(factor: &BlendFactor) -> u32 {
                 match factor {
@@ -279,5 +359,12 @@ impl<'a> RenderPass for WebGL2RenderPass<'a> {
         let program = programs.get(&pipeline.shader_stages).unwrap();
 
         gl_call!(gl.use_program(Some(&program.program)));
+
+        if let Some(ScissorsState { x, y, w, h }) = pipeline.scissors_state.clone() {
+            gl_call!(gl.enable(Gl::SCISSOR_TEST));
+            gl_call!(gl.scissor(x, y, w, h));
+        } else {
+            gl_call!(gl.disable(Gl::SCISSOR_TEST));
+        }
     }
 }

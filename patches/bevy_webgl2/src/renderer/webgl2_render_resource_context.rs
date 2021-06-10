@@ -1,17 +1,18 @@
 use super::{compile_shader, link_program, reflect_layout, Gl};
 use crate::{
-    gl_call, Buffer, Device, GlBufferInfo, GlShader, GlVertexBufferDescripror, WebGL2Pipeline,
-    WebGL2RenderResourceBinding, WebGL2Resources,
+    converters::*, gl_call, Buffer, Device, GlBufferInfo, GlShader, GlVertexBufferDescripror,
+    WebGL2Pipeline, WebGL2RenderResourceBinding, WebGL2Resources,
 };
 use bevy::asset::{Assets, Handle, HandleUntyped};
 use bevy::log::prelude::*;
 use bevy::render::{
     pipeline::{
-        BindGroupDescriptor, BindGroupDescriptorId, BindType, PipelineDescriptor, PipelineLayout,
+        BindGroupDescriptor, BindGroupDescriptorId, BindType, IndexFormat, PipelineDescriptor,
+        PipelineLayout,
     },
     renderer::{
-        BindGroup, BufferId, BufferInfo, BufferUsage, RenderResourceBinding, RenderResourceContext,
-        RenderResourceId, SamplerId, TextureId,
+        BindGroup, BufferId, BufferInfo, BufferMapMode, BufferUsage, RenderResourceBinding,
+        RenderResourceContext, RenderResourceId, SamplerId, TextureId,
     },
     shader::{Shader, ShaderError, ShaderSource, ShaderStage, ShaderStages},
     texture::{SamplerDescriptor, TextureDescriptor},
@@ -26,7 +27,7 @@ pub struct WebGL2RenderResourceContext {
     pub device: Arc<Device>,
     pub resources: WebGL2Resources,
     pub pipeline_descriptors: Arc<RwLock<HashMap<Handle<PipelineDescriptor>, PipelineDescriptor>>>,
-    pub swap_chain_texture_id: Cell<TextureId>,
+    pub swapchain_texture: TextureId,
     initialized: bool,
 }
 
@@ -42,8 +43,8 @@ impl WebGL2RenderResourceContext {
             device,
             resources: WebGL2Resources::default(),
             pipeline_descriptors: Default::default(),
-            swap_chain_texture_id: Cell::new(TextureId::new()),
             initialized: false,
+            swapchain_texture: TextureId::new(),
         }
     }
 
@@ -89,10 +90,11 @@ impl WebGL2RenderResourceContext {
 
         let size = winit_window.inner_size();
         let ctx_options = js_sys::Object::new();
-        #[allow(unused_unsafe)]
-        unsafe {
-            js_sys::Reflect::set(&ctx_options, &"alpha".into(), &false.into()).unwrap();
-        }
+        // TODO - test performance for alpha disabled / enabled
+        // #[allow(unused_unsafe)]
+        // unsafe {
+        //     js_sys::Reflect::set(&ctx_options, &"alpha".into(), &false.into()).unwrap();
+        // }
         let gl = winit_window
             .canvas()
             .get_context_with_context_options("webgl2", &ctx_options)
@@ -153,7 +155,7 @@ impl RenderResourceContext for WebGL2RenderResourceContext {
         let gl = &self.device.get_context();
 
         let layout = reflect_layout(&*gl, &program);
-        info!("reflected layoyt: {:#?}", layout);
+        debug!("reflected layout: {:#?}", layout);
         self.resources
             .programs
             .write()
@@ -171,18 +173,15 @@ impl RenderResourceContext for WebGL2RenderResourceContext {
 
     fn create_swap_chain(&self, window: &Window) {
         let gl = &self.device.get_context();
-        gl_call!(gl.viewport(
-            0,
-            0,
-            window.physical_width() as i32,
-            window.physical_height() as i32
-        ));
+        let mut window_size = self.resources.window_size.write();
+        *window_size = (window.physical_width(), window.physical_height());
+        gl_call!(gl.viewport(0, 0, window_size.0 as i32, window_size.1 as i32,));
     }
 
-    fn next_swap_chain_texture(&self, _window: &Window) -> TextureId {
-        // TODO: Do we need to change the texture id each time?
-        // self.swap_chain_texture_id.set(TextureId::new());
-        self.swap_chain_texture_id.get()
+    fn next_swap_chain_texture(&self, window: &Window) -> TextureId {
+        let mut window_size = self.resources.window_size.write();
+        *window_size = (window.physical_width(), window.physical_height());
+        self.swapchain_texture
     }
 
     fn drop_swap_chain_texture(&self, _render_resource: TextureId) {}
@@ -198,29 +197,34 @@ impl RenderResourceContext for WebGL2RenderResourceContext {
         self.add_texture_descriptor(texture_id, texture_descriptor);
         let gl = &self.device.get_context();
         let texture = gl_call!(gl.create_texture()).unwrap();
+
+        let size = texture_descriptor.size;
         gl_call!(gl.bind_texture(Gl::TEXTURE_2D, Some(&texture)));
 
-        // TODO: unsupported formats from texture_descriptor.
-        let level = 0;
-        let internal_format = Gl::RGBA;
-        let border = 0;
-        let format = internal_format;
-        let data_type = Gl::UNSIGNED_BYTE;
-        let pixels = None;
+        let (internal_format, format, _type) = texture_descriptor.format.webgl2_into();
+
         gl_call!(
             gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
                 Gl::TEXTURE_2D,
-                level,
+                0, //destination_mip_level as i32,
                 internal_format as i32,
-                texture_descriptor.size.width as i32,
-                texture_descriptor.size.height as i32,
-                border,
+                size.width as i32,
+                size.height as i32,
+                0,
                 format,
-                data_type,
-                pixels,
+                _type,
+                None as Option<&[u8]>,
             )
         )
         .unwrap();
+        gl_call!(gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_MIN_FILTER, Gl::NEAREST as i32));
+        gl_call!(gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_MAG_FILTER, Gl::NEAREST as i32));
+        gl_call!(gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_WRAP_S, Gl::CLAMP_TO_EDGE as i32));
+        gl_call!(gl.tex_parameteri(Gl::TEXTURE_2D, Gl::TEXTURE_WRAP_T, Gl::CLAMP_TO_EDGE as i32));
+        gl_call!(gl.bind_texture(
+            Gl::TEXTURE_2D,
+            None as Option<&crate::renderer::WebGlTexture>,
+        ));
 
         self.resources.textures.write().insert(texture_id, texture);
         texture_id
@@ -254,7 +258,15 @@ impl RenderResourceContext for WebGL2RenderResourceContext {
                 .ok_or("failed to create_buffer")
                 .unwrap();
             gl_call!(gl.bind_buffer(Gl::UNIFORM_BUFFER, Some(&id)));
-            gl_call!(gl.buffer_data_with_i32(Gl::UNIFORM_BUFFER, size as i32, Gl::DYNAMIC_DRAW,));
+            let type_ = if info
+                .buffer_usage
+                .contains(BufferUsage::COPY_DST | BufferUsage::INDIRECT)
+            {
+                Gl::STREAM_READ
+            } else {
+                Gl::DYNAMIC_DRAW
+            };
+            gl_call!(gl.buffer_data_with_i32(Gl::UNIFORM_BUFFER, size as i32, type_));
             Buffer::WebGlBuffer(id)
         };
         let gl_buffer_info = GlBufferInfo { buffer, info };
@@ -308,7 +320,43 @@ impl RenderResourceContext for WebGL2RenderResourceContext {
         // );
     }
 
-    fn map_buffer(&self, _id: BufferId) {
+    fn read_mapped_buffer(
+        &self,
+        id: BufferId,
+        range: Range<u64>,
+        read: &dyn Fn(&[u8], &dyn RenderResourceContext),
+    ) {
+        // let gl = &self.device.get_context();
+        // let fence_sync = self.resources.fence_sync.read();
+        // if fence_sync.is_some() {
+        //     let sync = fence_sync.as_ref().unwrap();
+        //     // let ret = gl.client_wait_sync_with_u32(&sync, Gl::SYNC_FLUSH_COMMANDS_BIT, 0);
+        //     let ret = gl.client_wait_sync_with_u32(sync, Gl::SYNC_FLUSH_COMMANDS_BIT, 0);
+        //     match ret {
+        //         Gl::ALREADY_SIGNALED => info!("already signaled"),
+        //         Gl::CONDITION_SATISFIED => info!("condition satisfied"),
+        //         Gl::TIMEOUT_EXPIRED => info!("timeout expired"),
+        //         _ => info!("unknown err"),
+        //     }
+        // } else {
+        //     info!("no fence sync");
+        // }
+
+        let mut buffers = self.resources.buffers.write();
+        let info = buffers.get_mut(&id).unwrap();
+        if let Buffer::WebGlBuffer(buffer_id) = &info.buffer {
+            let mut data: Vec<u8> = Vec::with_capacity((range.end - range.start) as usize);
+            unsafe {
+                data.set_len((range.end - range.start) as usize);
+            }
+            let gl = &self.device.get_context();
+            gl.bind_buffer(Gl::PIXEL_PACK_BUFFER, Some(buffer_id));
+            gl.get_buffer_sub_data_with_i32_and_u8_array(Gl::PIXEL_PACK_BUFFER, 0, data.as_mut());
+            read(data.as_mut(), self);
+        }
+    }
+
+    fn map_buffer(&self, _id: BufferId, _mode: BufferMapMode) {
         // info!("map buffer {:?}", _id);
     }
 
@@ -447,7 +495,7 @@ impl RenderResourceContext for WebGL2RenderResourceContext {
                         gl_call!(gl.get_uniform_location(&program.program, &binding.name))
                     {
                         info!("found uniform location: {:?}", uniform_location);
-                        if let BindType::SampledTexture { .. } = binding.bind_type {
+                        if let BindType::Texture { .. } = binding.bind_type {
                             let texture_unit = self
                                 .resources
                                 .get_or_create_texture_unit(bind_group.index, binding.index);
@@ -498,11 +546,16 @@ impl RenderResourceContext for WebGL2RenderResourceContext {
             vao,
             update_vao: false,
             index_buffer: None,
+            index_format: IndexFormat::Uint32,
             vertex_buffer: None,
-            color_states: pipeline_descriptor.color_states.clone(),
-            depth_stencil_state: pipeline_descriptor.depth_stencil_state.clone(),
-            rasterization_state: pipeline_descriptor.rasterization_state.clone(),
+            color_target_states: pipeline_descriptor.color_target_states.clone(),
+            depth_stencil: pipeline_descriptor.depth_stencil.clone(),
+            primitive: pipeline_descriptor.primitive.clone(),
+            scissors_state: None,
         };
+        self.pipeline_descriptors
+            .write()
+            .insert(pipeline_handle.clone(), pipeline_descriptor.clone());
         self.resources
             .pipelines
             .write()

@@ -4,10 +4,9 @@ use bevy::log::prelude::*;
 use bevy::render::{
     pipeline::{
         BindGroupDescriptor, BindType, BindingDescriptor, BindingShaderStage, InputStepMode,
-        PipelineLayout, UniformProperty, VertexAttributeDescriptor, VertexBufferDescriptor,
-        VertexFormat,
+        PipelineLayout, UniformProperty, VertexAttribute, VertexBufferLayout, VertexFormat,
     },
-    texture::{TextureComponentType, TextureViewDimension},
+    texture::{TextureSampleType, TextureViewDimension},
 };
 use bevy::utils::HashSet;
 use std::iter::Extend;
@@ -90,6 +89,13 @@ fn get_vertex_format(gl_type: u32) -> VertexFormat {
         Gl::FLOAT_VEC3 => VertexFormat::Float3,
         Gl::FLOAT_VEC4 => VertexFormat::Float4,
         Gl::INT => VertexFormat::Int,
+        Gl::INT_VEC2 => VertexFormat::Int2,
+        Gl::INT_VEC3 => VertexFormat::Int3,
+        Gl::INT_VEC4 => VertexFormat::Int4,
+        Gl::UNSIGNED_INT => VertexFormat::Uint,
+        Gl::UNSIGNED_INT_VEC2 => VertexFormat::Uint2,
+        Gl::UNSIGNED_INT_VEC3 => VertexFormat::Uint3,
+        Gl::UNSIGNED_INT_VEC4 => VertexFormat::Uint4,
         _ => panic!("unknown vertex attribute type: {:?}", gl_type),
     }
 }
@@ -114,11 +120,11 @@ pub fn reflect_layout(context: &WebGl2RenderingContext, program: &GlProgram) -> 
 
         let format = get_vertex_format(info.type_());
 
-        vertex_buffer_descriptors.push(VertexBufferDescriptor {
+        vertex_buffer_descriptors.push(VertexBufferLayout {
             name: info.name().into(),
             stride: 0,
             step_mode: InputStepMode::Vertex,
-            attributes: vec![VertexAttributeDescriptor {
+            attributes: vec![VertexAttribute {
                 name: info.name().into(),
                 offset: 0,
                 format,
@@ -127,25 +133,12 @@ pub fn reflect_layout(context: &WebGl2RenderingContext, program: &GlProgram) -> 
         });
         shader_location += 1;
     }
-    let mut bind_groups = vec![];
+    let mut bind_groups: Vec<BindGroupDescriptor> = Vec::new();
 
     let active_uniform_blocks = gl
         .get_program_parameter(&program.program, Gl::ACTIVE_UNIFORM_BLOCKS)
         .as_f64()
         .unwrap() as u32;
-
-    bind_groups.push(BindGroupDescriptor::new(
-        0,
-        vec![BindingDescriptor {
-            name: "Camera".to_string(),
-            index: 0,
-            bind_type: BindType::Uniform {
-                dynamic: false,
-                property: UniformProperty::Struct(vec![UniformProperty::Mat4]),
-            },
-            shader_stage: BindingShaderStage::VERTEX | BindingShaderStage::FRAGMENT,
-        }],
-    ));
 
     let mut used_indices: HashSet<u32> = HashSet::default();
     used_indices.extend(bind_groups.iter().map(|g| g.index));
@@ -160,13 +153,61 @@ pub fn reflect_layout(context: &WebGl2RenderingContext, program: &GlProgram) -> 
         index
     }
 
+    let mut names: Vec<String> = Vec::with_capacity(active_uniform_blocks as usize);
+
     for uniform_index in 0..active_uniform_blocks {
         let name = gl
             .get_active_uniform_block_name(&program.program, uniform_index)
             .unwrap();
-        if name == "Camera" {
+
+        if name == "CameraPosition" {
+            let camera_position = BindingDescriptor {
+                name: "CameraPosition".to_string(),
+                index: 1,
+                bind_type: BindType::Uniform {
+                    has_dynamic_offset: false,
+                    property: UniformProperty::Struct(vec![UniformProperty::Vec4]),
+                },
+                shader_stage: BindingShaderStage::FRAGMENT,
+            };
+            let bind_group = bind_groups.iter_mut().find(|bg| bg.index == 0);
+            if let Some(bind_group) = bind_group {
+                bind_group.bindings.push(camera_position);
+            } else {
+                used_indices.insert(0);
+
+                bind_groups.push(BindGroupDescriptor::new(0, vec![camera_position]));
+            }
+        } else if name == "CameraViewProj" {
+            let camera_descriptor = BindingDescriptor {
+                name: "CameraViewProj".to_string(),
+                index: 0,
+                bind_type: BindType::Uniform {
+                    has_dynamic_offset: false,
+                    property: UniformProperty::Struct(vec![UniformProperty::Mat4]),
+                },
+                shader_stage: BindingShaderStage::VERTEX | BindingShaderStage::FRAGMENT,
+            };
+            let bind_group = bind_groups.iter_mut().find(|bg| bg.index == 0);
+            if let Some(bind_group) = bind_group {
+                bind_group.bindings.push(camera_descriptor);
+            } else {
+                used_indices.insert(0);
+
+                bind_groups.push(BindGroupDescriptor::new(0, vec![camera_descriptor]));
+            }
+        }
+
+        names.push(name);
+    }
+
+    for uniform_index in 0..active_uniform_blocks {
+        let name = &names[uniform_index as usize];
+
+        if name == "CameraPosition" || name == "CameraViewProj" {
             continue;
         }
+
         let size = gl
             .get_active_uniform_block_parameter(
                 &program.program,
@@ -201,18 +242,18 @@ pub fn reflect_layout(context: &WebGl2RenderingContext, program: &GlProgram) -> 
         //     active_uniforms,
         //     active_uniform_indices
         // );
-        let (group_index, index) =
-            if let Some((group_index, index)) = program.bind_groups.get(&name) {
-                (*group_index, *index)
-            } else {
-                (next_group_index(&mut used_indices), 0)
-            };
+        let (group_index, index) = if let Some((group_index, index)) = program.bind_groups.get(name)
+        {
+            (*group_index, *index)
+        } else {
+            (next_group_index(&mut used_indices), 0)
+        };
         let property = UniformProperty::Array(Box::new(UniformProperty::UInt), size as usize / 4);
         let binding = BindingDescriptor {
-            name,
+            name: name.to_string(),
             index,
             bind_type: BindType::Uniform {
-                dynamic: false,
+                has_dynamic_offset: false,
                 property,
             },
             shader_stage: BindingShaderStage::VERTEX | BindingShaderStage::FRAGMENT,
@@ -236,7 +277,13 @@ pub fn reflect_layout(context: &WebGl2RenderingContext, program: &GlProgram) -> 
             .unwrap();
         let name = info.name();
 
-        if info.type_() == Gl::SAMPLER_2D {
+        if [
+            Gl::SAMPLER_2D,
+            Gl::UNSIGNED_INT_SAMPLER_2D,
+            Gl::INT_SAMPLER_2D,
+        ]
+        .contains(&info.type_())
+        {
             let (group_index, index) =
                 if let Some((group_index, index)) = program.bind_groups.get(&name) {
                     (*group_index, *index)
@@ -247,10 +294,10 @@ pub fn reflect_layout(context: &WebGl2RenderingContext, program: &GlProgram) -> 
             let binding = BindingDescriptor {
                 name: info.name(),
                 index: index,
-                bind_type: BindType::SampledTexture {
+                bind_type: BindType::Texture {
                     multisampled: false,
-                    dimension: TextureViewDimension::D2,
-                    component_type: TextureComponentType::Float,
+                    view_dimension: TextureViewDimension::D2,
+                    sample_type: TextureSampleType::Float { filterable: true },
                 },
                 shader_stage: BindingShaderStage::FRAGMENT,
             };
