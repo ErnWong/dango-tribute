@@ -1049,28 +1049,6 @@ dependencies = [
 
 [[package]]
 name = "bevy_gltf"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd4253666139cdc5425d1399a033d7f4eaf685fb914b087b6d5c6a1086432995"
-dependencies = [
- "anyhow",
- "base64 0.12.3",
- "bevy_app 0.4.0",
- "bevy_asset 0.4.0",
- "bevy_ecs 0.4.0",
- "bevy_math 0.4.0",
- "bevy_pbr 0.4.0",
- "bevy_reflect 0.4.0",
- "bevy_render 0.4.0",
- "bevy_scene 0.4.0",
- "bevy_transform 0.4.0",
- "gltf",
- "image",
- "thiserror",
-]
-
-[[package]]
-name = "bevy_gltf"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9233bfb7e2cf053b51f01d2e57ea5a549438c0e5f08735d595b6a6504d00639e"
@@ -1127,7 +1105,6 @@ dependencies = [
  "bevy_derive 0.4.0",
  "bevy_diagnostic 0.4.0",
  "bevy_ecs 0.4.0",
- "bevy_gltf 0.4.0",
  "bevy_input 0.4.0",
  "bevy_log 0.4.0",
  "bevy_math 0.4.0",
@@ -1142,7 +1119,6 @@ dependencies = [
  "bevy_ui 0.4.0",
  "bevy_utils 0.4.0",
  "bevy_window 0.4.0",
- "bevy_winit 0.4.0",
  "ndk-glue",
 ]
 
@@ -1161,7 +1137,7 @@ dependencies = [
  "bevy_dynamic_plugin",
  "bevy_ecs 0.5.0",
  "bevy_gilrs",
- "bevy_gltf 0.5.0",
+ "bevy_gltf",
  "bevy_input 0.5.0",
  "bevy_log 0.5.0",
  "bevy_math 0.5.0",
@@ -1177,7 +1153,7 @@ dependencies = [
  "bevy_utils 0.5.0",
  "bevy_wgpu",
  "bevy_window 0.5.0",
- "bevy_winit 0.5.0",
+ "bevy_winit",
  "ndk-glue",
 ]
 
@@ -1731,9 +1707,9 @@ dependencies = [
 
 [[package]]
 name = "bevy_webgl2"
-version = "0.4.0"
+version = "0.5.2"
 dependencies = [
- "bevy 0.4.0",
+ "bevy 0.5.0",
  "cfg-if 1.0.0",
  "js-sys",
  "parking_lot",
@@ -1757,7 +1733,7 @@ dependencies = [
  "bevy_render 0.5.0",
  "bevy_utils 0.5.0",
  "bevy_window 0.5.0",
- "bevy_winit 0.5.0",
+ "bevy_winit",
  "crossbeam-channel 0.5.0",
  "crossbeam-utils 0.8.3",
  "futures-lite",
@@ -1789,23 +1765,6 @@ dependencies = [
  "bevy_math 0.5.0",
  "bevy_utils 0.5.0",
  "web-sys",
-]
-
-[[package]]
-name = "bevy_winit"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c4c23da1c3502e5e4344cd7a9bf5c1567471dfd633c3f8e0c8ccebf1dcfafed"
-dependencies = [
- "bevy_app 0.4.0",
- "bevy_ecs 0.4.0",
- "bevy_input 0.4.0",
- "bevy_math 0.4.0",
- "bevy_utils 0.4.0",
- "bevy_window 0.4.0",
- "wasm-bindgen",
- "web-sys",
- "winit",
 ]
 
 [[package]]

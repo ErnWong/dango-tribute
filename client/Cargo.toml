@@ -42,7 +42,7 @@ bevy = {version = "0.5", default-features = false}
 bevy_fly_camera = {version = "0.7.0", optional = true}
 bevy_kira_audio = "0.5.0"
 bevy_prototype_lyon = {git = "https://github.com/Nilirad/bevy_prototype_lyon", branch = "master"}
-bevy_webgl2 = {version = "0.4.0", optional = true}
+bevy_webgl2 = {version = "0.5.2", optional = true}
 bevy_web_fullscreen = {git = "https://github.com/ostwilkens/bevy_web_fullscreen", rev = "392d985a56f23a5318a1fb4276d62054595bce91"}
 bevy_prototype_frameshader = {path = "../crates/bevy_prototype_frameshader"}
 bevy_prototype_transform_tracker = {path = "../crates/bevy_prototype_transform_tracker"}
