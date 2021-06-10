@@ -1698,9 +1698,10 @@ dependencies = [
 
 [[package]]
 name = "bevy_web_fullscreen"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
- "bevy 0.4.0",
+ "bevy 0.5.0",
+ "futures",
  "gloo-events",
  "web-sys",
 ]
