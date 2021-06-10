@@ -1,6 +1,6 @@
 [package]
 name = "bevy_web_fullscreen"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["ostwilkens <carl@ostwilkens.se>"]
 edition = "2018"
 
@@ -9,8 +9,8 @@ edition = "2018"
 [dependencies]
 gloo-events = "0.1.1"
 web-sys = { version = "0.3.45", features = ["Element", "Document", "Window"] }
+futures = "0.3"
 
 [dependencies.bevy]
-git = "https://github.com/bevyengine/bevy"
-rev = "1398d7833007e85198cfd35d5fabc70b51b4db31"
+version = "0.5.0"
 default-features = false
