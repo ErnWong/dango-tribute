@@ -1,20 +1,33 @@
-use bevy::{prelude::*, window::Windows};
-use gloo_events::EventListener;
-use std::{cell::RefCell, rc::Rc};
+use bevy::{
+    prelude::{AppBuilder, IntoSystem, Plugin, Res, ResMut},
+    window::Windows,
+};
+use std::sync::{
+    mpsc::{Receiver, Sender},
+    Mutex,
+};
+
+type OnResizeSender = Sender<()>;
+type OnResizeReceiver = Receiver<()>;
 
 pub struct FullViewportPlugin;
 
 impl Plugin for FullViewportPlugin {
     fn build(&self, app: &mut AppBuilder) {
-        app.add_thread_local_resource(ViewportResizedEvents::default())
-            .add_thread_local_resource(LocalReader::default())
+        let channel = std::sync::mpsc::channel();
+        let resize_sender: OnResizeSender = channel.0;
+        let resize_receiver: OnResizeReceiver = channel.1;
+
+        app.insert_resource(Mutex::new(resize_sender))
+            .insert_resource(Mutex::new(resize_receiver))
+            .add_startup_system(setup_viewport_resize_system.system())
             .add_system(viewport_resize_system.system());
     }
 }
 
-fn get_viewport_size() -> ViewportResized {
-    let window = web_sys::window().expect("could not get window");
-    let body = window
+fn get_viewport_size() -> (f32, f32) {
+    let web_window = web_sys::window().expect("could not get window");
+    let body = web_window
         .document()
         .expect("could not get document")
         .body()
@@ -24,53 +37,29 @@ fn get_viewport_size() -> ViewportResized {
     let width = std::cmp::min(body.offset_width(), 800);
     let height = std::cmp::min(body.offset_height(), 300);
 
-    ViewportResized {
-        width: width as f32,
-        height: height as f32,
-    }
+    (width as f32, height as f32)
 }
 
-pub struct ViewportResized {
-    pub width: f32,
-    pub height: f32,
+fn setup_viewport_resize_system(resize_sender: Res<Mutex<OnResizeSender>>) {
+    let web_window = web_sys::window().expect("could not get window");
+    let local_sender = resize_sender.lock().unwrap().clone();
+
+    local_sender.send(()).unwrap();
+
+    gloo_events::EventListener::new(&web_window, "resize", move |_event| {
+        local_sender.send(()).unwrap();
+    })
+    .forget();
 }
 
-pub struct ViewportResizedEvents {
-    events: Rc<RefCell<Events<ViewportResized>>>,
-    event_listener: EventListener,
-}
-
-#[derive(Default)]
-pub struct LocalReader {
-    pub event_reader: EventReader<ViewportResized>,
-}
-
-impl Default for ViewportResizedEvents {
-    fn default() -> Self {
-        let window = web_sys::window().expect("could not get window");
-        let events: Rc<RefCell<Events<ViewportResized>>> = Rc::new(Default::default());
-        events.borrow_mut().send(get_viewport_size().into());
-        let events_cloned = events.clone();
-        let event_listener = EventListener::new(&window, "resize", move |_event| {
-            events_cloned.borrow_mut().send(get_viewport_size());
-        });
-        Self {
-            events,
-            event_listener,
-        }
-    }
-}
-
-fn viewport_resize_system(_world: &mut World, resources: &mut Resources) {
-    let viewport_resized_events = resources
-        .get_thread_local::<ViewportResizedEvents>()
-        .unwrap();
-    let mut local_reader = resources.get_thread_local_mut::<LocalReader>().unwrap();
-    let mut windows = resources.get_mut::<Windows>().unwrap();
-    let events = viewport_resized_events.events.borrow();
-    for event in local_reader.event_reader.iter(&events) {
+fn viewport_resize_system(
+    mut windows: ResMut<Windows>,
+    resize_receiver: Res<Mutex<OnResizeReceiver>>,
+) {
+    if resize_receiver.lock().unwrap().try_recv().is_ok() {
         if let Some(window) = windows.get_primary_mut() {
-            window.set_resolution(event.width, event.height);
+            let size = get_viewport_size();
+            window.set_resolution(size.0, size.1);
         }
     }
 }
