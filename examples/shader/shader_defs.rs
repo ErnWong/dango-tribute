@@ -18,7 +18,7 @@ fn main() {
         .add_asset::<MyMaterial>()
         .add_startup_system(setup.system())
         .add_system_to_stage(
-            stage::POST_UPDATE,
+            CoreStage::PostUpdate,
             asset_shader_defs_system::<MyMaterial>.system(),
         )
         .run();
@@ -37,7 +37,7 @@ const VERTEX_SHADER: &str = r#"
 #version 300 es
 precision highp float;
 in vec3 Vertex_Position;
-layout(std140) uniform Camera {
+layout(std140) uniform CameraViewProj {
     mat4 ViewProj;
 };
 layout(std140) uniform Transform { // set = 1, binding = 0
@@ -74,7 +74,7 @@ void main() {
 "#;
 
 fn setup(
-    commands: &mut Commands,
+    mut commands: Commands,
     mut pipelines: ResMut<Assets<PipelineDescriptor>>,
     mut shaders: ResMut<Assets<Shader>>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -115,7 +115,7 @@ fn setup(
 
     commands
         // cube
-        .spawn(MeshBundle {
+        .spawn_bundle(MeshBundle {
             mesh: cube_handle.clone(),
             render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
                 pipeline_handle.clone(),
@@ -123,9 +123,10 @@ fn setup(
             transform: Transform::from_translation(Vec3::new(-2.0, 0.0, 0.0)),
             ..Default::default()
         })
-        .with(green_material)
-        // cube
-        .spawn(MeshBundle {
+        .insert(green_material);
+    // cube
+    commands
+        .spawn_bundle(MeshBundle {
             mesh: cube_handle,
             render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
                 pipeline_handle,
@@ -133,11 +134,11 @@ fn setup(
             transform: Transform::from_translation(Vec3::new(2.0, 0.0, 0.0)),
             ..Default::default()
         })
-        .with(blue_material)
-        // camera
-        .spawn(Camera3dBundle {
-            transform: Transform::from_translation(Vec3::new(3.0, 5.0, -8.0))
-                .looking_at(Vec3::default(), Vec3::unit_y()),
-            ..Default::default()
-        });
+        .insert(blue_material);
+    // camera
+    commands.spawn_bundle(PerspectiveCameraBundle {
+        transform: Transform::from_translation(Vec3::new(3.0, 5.0, -8.0))
+            .looking_at(Vec3::default(), Vec3::Y),
+        ..Default::default()
+    });
 }

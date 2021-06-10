@@ -36,22 +36,22 @@ struct Velocity {
 const GRAVITY: f32 = -9.821 * 100.0;
 const SPRITE_SIZE: f32 = 75.0;
 
-const COL_DESELECTED: Color = Color::rgb_linear(0.03, 0.03, 0.03);
-const COL_SELECTED: Color = Color::rgb_linear(5.0, 5.0, 5.0);
+const COL_DESELECTED: Color = Color::rgba_linear(0.03, 0.03, 0.03, 0.92);
+const COL_SELECTED: Color = Color::WHITE;
 
 const SHOWCASE_TIMER_SECS: f32 = 3.0;
 
 fn setup(
-    commands: &mut Commands,
+    mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let contribs = contributors();
+
     let texture_handle = asset_server.load("branding/icon.png");
 
-    commands
-        .spawn(Camera2dBundle::default())
-        .spawn(CameraUiBundle::default());
+    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands.spawn_bundle(UiCameraBundle::default());
 
     let mut sel = ContributorSelection {
         order: vec![],
@@ -61,27 +61,28 @@ fn setup(
     let mut rnd = rand::thread_rng();
 
     for name in contribs {
-        let pos = (rnd.gen_range(-400.0, 400.0), rnd.gen_range(0.0, 400.0));
-        let dir = rnd.gen_range(-1.0, 1.0);
+        let pos = (rnd.gen_range(-400.0..400.0), rnd.gen_range(0.0..400.0));
+        let dir = rnd.gen_range(-1.0..1.0);
         let velocity = Vec3::new(dir * 500.0, 0.0, 0.0);
         let col = gen_color(&mut rnd);
 
         // some sprites should be flipped
         let flipped = rnd.gen_bool(0.5);
 
-        let mut transform = Transform::from_translation(Vec3::new(pos.0, pos.1, 0.0));
-        transform.scale.x *= if flipped { -1.0 } else { 1.0 };
+        let transform = Transform::from_xyz(pos.0, pos.1, 0.0);
 
-        commands
-            .spawn((Contributor { color: col },))
-            .with(Velocity {
+        let e = commands
+            .spawn_bundle((Contributor { color: col },))
+            .insert(Velocity {
                 translation: velocity,
                 rotation: -dir * 5.0,
             })
-            .with_bundle(SpriteBundle {
+            .insert_bundle(SpriteBundle {
                 sprite: Sprite {
                     size: Vec2::new(1.0, 1.0) * SPRITE_SIZE,
                     resize_mode: SpriteResizeMode::Manual,
+                    flip_x: flipped,
+                    ..Default::default()
                 },
                 material: materials.add(ColorMaterial {
                     color: COL_DESELECTED * col,
@@ -89,32 +90,43 @@ fn setup(
                 }),
                 ..Default::default()
             })
-            .with(transform);
-
-        let e = commands.current_entity().unwrap();
+            .insert(transform)
+            .id();
 
         sel.order.push((name, e));
     }
 
     sel.order.shuffle(&mut rnd);
 
-    commands.spawn((SelectTimer, Timer::from_seconds(SHOWCASE_TIMER_SECS, true)));
+    commands.spawn_bundle((SelectTimer, Timer::from_seconds(SHOWCASE_TIMER_SECS, true)));
 
     commands
-        .spawn((ContributorDisplay,))
-        .with_bundle(TextBundle {
+        .spawn_bundle((ContributorDisplay,))
+        .insert_bundle(TextBundle {
             style: Style {
                 align_self: AlignSelf::FlexEnd,
                 ..Default::default()
             },
             text: Text {
-                value: "Contributor showcase".to_string(),
-                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                style: TextStyle {
-                    font_size: 60.0,
-                    color: Color::WHITE,
-                    ..Default::default()
-                },
+                sections: vec![
+                    TextSection {
+                        value: "Contributor showcase".to_string(),
+                        style: TextStyle {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 60.0,
+                            color: Color::WHITE,
+                        },
+                    },
+                    TextSection {
+                        value: "".to_string(),
+                        style: TextStyle {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 60.0,
+                            color: Color::WHITE,
+                        },
+                    },
+                ],
+                ..Default::default()
             },
             ..Default::default()
         });
@@ -126,14 +138,14 @@ fn setup(
 fn select_system(
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut sel: ResMut<ContributorSelection>,
-    mut dq: Query<Mut<Text>, With<ContributorDisplay>>,
-    time: Res<Time>,
-    mut tq: Query<Mut<Timer>, With<SelectTimer>>,
+    mut dq: Query<&mut Text, With<ContributorDisplay>>,
+    mut tq: Query<&mut Timer, With<SelectTimer>>,
     mut q: Query<(&Contributor, &Handle<ColorMaterial>, &mut Transform)>,
+    time: Res<Time>,
 ) {
     let mut timer_fired = false;
     for mut t in tq.iter_mut() {
-        if !t.tick(time.delta_seconds()).just_finished() {
+        if !t.tick(time.delta()).just_finished() {
             continue;
         }
         t.reset();
@@ -190,7 +202,9 @@ fn select(
 
     trans.translation.z = 100.0;
 
-    text.value = format!("Contributor: {}", name);
+    text.sections[0].value = "Contributor: ".to_string();
+    text.sections[1].value = name.to_string();
+    text.sections[1].style.color = mat.color;
 
     Some(())
 }
@@ -212,7 +226,7 @@ fn deselect(
 }
 
 /// Applies gravity to all entities with velocity
-fn velocity_system(time: Res<Time>, mut q: Query<Mut<Velocity>>) {
+fn velocity_system(time: Res<Time>, mut q: Query<&mut Velocity>) {
     let delta = time.delta_seconds();
 
     for mut v in q.iter_mut() {
@@ -227,7 +241,7 @@ fn velocity_system(time: Res<Time>, mut q: Query<Mut<Velocity>>) {
 /// force.
 fn collision_system(
     wins: Res<Windows>,
-    mut q: Query<(Mut<Velocity>, Mut<Transform>), With<Contributor>>,
+    mut q: Query<(&mut Velocity, &mut Transform), With<Contributor>>,
 ) {
     let mut rnd = rand::thread_rng();
 
@@ -249,7 +263,7 @@ fn collision_system(
         if bottom < ground {
             t.translation.y = ground + SPRITE_SIZE / 2.0;
             // apply an impulse upwards
-            v.translation.y = rnd.gen_range(700.0, 1000.0);
+            v.translation.y = rnd.gen_range(700.0..1000.0);
         }
         if top > ceiling {
             t.translation.y = ceiling - SPRITE_SIZE / 2.0;
@@ -269,7 +283,7 @@ fn collision_system(
 }
 
 /// Apply velocity to positions and rotations.
-fn move_system(time: Res<Time>, mut q: Query<(&Velocity, Mut<Transform>)>) {
+fn move_system(time: Res<Time>, mut q: Query<(&Velocity, &mut Transform)>) {
     let delta = time.delta_seconds();
 
     for (v, mut t) in q.iter_mut() {
@@ -291,6 +305,7 @@ fn contributors() -> Contributors {
         "log",
         "--pretty=format:%an"
     );
+
     stdout.split("\n").map(|x| x.to_string()).collect()
 }
 
@@ -299,9 +314,14 @@ fn contributors() -> Contributors {
 /// Because there is no `Mul<Color> for Color` instead `[f32; 3]` is
 /// used.
 fn gen_color(rng: &mut impl Rng) -> [f32; 3] {
-    let r = rng.gen_range(0.2, 1.0);
-    let g = rng.gen_range(0.2, 1.0);
-    let b = rng.gen_range(0.2, 1.0);
-    let v = Vec3::new(r, g, b);
-    v.normalize().into()
+    loop {
+        let rgb = rng.gen();
+        if luminance(rgb) >= 0.6 {
+            break rgb;
+        }
+    }
+}
+
+fn luminance([r, g, b]: [f32; 3]) -> f32 {
+    0.299 * r + 0.587 * g + 0.114 * b
 }
