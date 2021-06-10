@@ -1,5 +1,5 @@
 use bevy::{
-    app::{App, EventReader, Events, ScheduleRunnerSettings},
+    app::{App, EventReader, ScheduleRunnerSettings},
     core::Time,
     ecs::prelude::*,
     MinimalPlugins,
@@ -28,17 +28,16 @@ fn main() {
 
     App::build()
         // minimal plugins necessary for timers + headless loop
-        .add_resource(ScheduleRunnerSettings::run_loop(Duration::from_secs_f64(
+        .insert_resource(ScheduleRunnerSettings::run_loop(Duration::from_secs_f64(
             1.0 / 60.0,
         )))
         .add_plugins(MinimalPlugins)
         // The NetworkingPlugin
         .add_plugin(NetworkingPlugin::default())
         // Our networking
-        .add_resource(parse_args())
+        .insert_resource(parse_args())
         .add_startup_system(startup.system())
         .add_system(send_packets.system())
-        .init_resource::<NetworkReader>()
         .add_system(handle_packets.system())
         .run();
 }
@@ -46,24 +45,26 @@ fn main() {
 fn startup(mut net: ResMut<NetworkResource>, args: Res<Args>) {
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
-            // FIXME: set this address to your local machine
-            let mut socket_address: SocketAddr = "192.168.1.20:0".parse().unwrap();
-            socket_address.set_port(SERVER_PORT);
+            // set the following address to your server address (i.e. local machine)
+            // and remove compile_error! line
+            let mut server_address: SocketAddr = "192.168.1.1:0".parse().unwrap();
+            compile_error!("You need to set server_address.");
+            server_address.set_port(SERVER_PORT);
         } else {
             let ip_address =
                 bevy_networking_turbulence::find_my_ip_address().expect("can't find ip address");
-            let socket_address = SocketAddr::new(ip_address, SERVER_PORT);
+            let server_address = SocketAddr::new(ip_address, SERVER_PORT);
         }
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     if args.is_server {
         log::info!("Starting server");
-        net.listen(socket_address);
+        net.listen(server_address, None, None);
     }
     if !args.is_server {
         log::info!("Starting client");
-        net.connect(socket_address);
+        net.connect(server_address);
     }
 }
 
@@ -75,19 +76,12 @@ fn send_packets(mut net: ResMut<NetworkResource>, time: Res<Time>, args: Res<Arg
         }
     }
 }
-
-#[derive(Default)]
-struct NetworkReader {
-    network_events: EventReader<NetworkEvent>,
-}
-
 fn handle_packets(
     mut net: ResMut<NetworkResource>,
     time: Res<Time>,
-    mut state: ResMut<NetworkReader>,
-    network_events: Res<Events<NetworkEvent>>,
+    mut reader: EventReader<NetworkEvent>,
 ) {
-    for event in state.network_events.iter(&network_events) {
+    for event in reader.iter() {
         match event {
             NetworkEvent::Packet(handle, packet) => {
                 let message = String::from_utf8_lossy(packet);

@@ -26,7 +26,7 @@ use turbulence::{
     buffer::BufferPacketPool,
     message_channels::ChannelMessage,
     packet::{Packet as PoolPacket, PacketPool, MAX_PACKET_LEN},
-    packet_multiplexer::MuxPacketPool,
+    packet_multiplexer::{IncomingTrySendError, MuxPacketPool},
 };
 pub use turbulence::{
     message_channels::{MessageChannelMode, MessageChannelSettings},
@@ -35,7 +35,10 @@ pub use turbulence::{
 
 mod channels;
 mod transport;
-use self::channels::{SimpleBufferPool, TaskPoolRuntime};
+use self::{
+    channels::{SimpleBufferPool, TaskPoolRuntime},
+    transport::MultiplexedPacket,
+};
 pub use transport::{Connection, ConnectionChannelsBuilder, Packet};
 
 pub type ConnectionHandle = u32;
@@ -48,13 +51,13 @@ pub struct NetworkingPlugin {
 impl Plugin for NetworkingPlugin {
     fn build(&self, app: &mut AppBuilder) {
         let task_pool = app
-            .resources()
-            .get::<IoTaskPool>()
-            .expect("IoTaskPool resource not found")
+            .world()
+            .get_resource::<IoTaskPool>()
+            .expect("`IoTaskPool` resource not found.")
             .0
             .clone();
 
-        app.add_resource(NetworkResource::new(
+        app.insert_resource(NetworkResource::new(
             task_pool,
             self.link_conditioner.clone(),
         ))
@@ -73,7 +76,7 @@ pub struct NetworkResource {
     #[cfg(not(target_arch = "wasm32"))]
     listeners: Vec<ServerListener>,
     #[cfg(not(target_arch = "wasm32"))]
-    server_channels: Arc<RwLock<HashMap<SocketAddr, Sender<Packet>>>>,
+    server_channels: Arc<RwLock<HashMap<SocketAddr, Sender<Result<Packet, NetworkError>>>>>,
 
     runtime: TaskPoolRuntime,
     packet_pool: MuxPacketPool<BufferPacketPool<SimpleBufferPool>>,
@@ -85,7 +88,8 @@ pub struct NetworkResource {
 #[cfg(not(target_arch = "wasm32"))]
 #[allow(dead_code)] // FIXME: remove this struct?
 struct ServerListener {
-    receiver_task: bevy_tasks::Task<()>, // needed to keep receiver_task alive
+    receiver_task: bevy_tasks::Task<()>,
+    // needed to keep receiver_task alive
     sender: ServerSender,
     socket_address: SocketAddr,
 }
@@ -95,11 +99,19 @@ pub enum NetworkEvent {
     Connected(ConnectionHandle),
     Disconnected(ConnectionHandle),
     Packet(ConnectionHandle, Packet),
-    // Error(NetworkError),
+    Error(ConnectionHandle, NetworkError),
+}
+
+#[derive(Debug)]
+pub enum NetworkError {
+    TurbulenceChannelError(IncomingTrySendError<MultiplexedPacket>),
+    IoError(Box<dyn Error + Sync + Send>),
+    Disconnected,
 }
 
 #[cfg(target_arch = "wasm32")]
 unsafe impl Send for NetworkResource {}
+
 #[cfg(target_arch = "wasm32")]
 unsafe impl Sync for NetworkResource {}
 
@@ -126,10 +138,27 @@ impl NetworkResource {
         }
     }
 
+    /// The 3 listening addresses aren't strictly necessary, you can put the same IP address with a different port for the socket address; Unless you have some configuration issues with public and private addresses that need to be connected to.
+    /// They also aren't necessary if you're using UDP, so you can put anything if that's the case.
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn listen(&mut self, socket_address: SocketAddr) {
+    pub fn listen(
+        &mut self,
+        socket_address: SocketAddr,
+        webrtc_listen_address: Option<SocketAddr>,
+        public_webrtc_address: Option<SocketAddr>,
+    ) {
         let mut server_socket = {
-            let socket = futures_lite::future::block_on(ServerSocket::listen(socket_address));
+            let webrtc_listen_address = webrtc_listen_address.unwrap_or_else(|| {
+                let mut listen_addr = socket_address;
+                listen_addr.set_port(socket_address.port() + 1);
+                listen_addr
+            });
+            let public_webrtc_address = public_webrtc_address.unwrap_or(webrtc_listen_address);
+            let socket = futures_lite::future::block_on(ServerSocket::listen(
+                socket_address,
+                webrtc_listen_address,
+                public_webrtc_address,
+            ));
 
             if let Some(ref conditioner) = self.link_conditioner {
                 socket.with_link_conditioner(conditioner)
@@ -155,37 +184,57 @@ impl NetworkResource {
                             message
                         );
 
-                        match server_channels.write() {
-                            Ok(mut server_channels) => {
-                                if !server_channels.contains_key(&address) {
-                                    let (packet_tx, packet_rx): (Sender<Packet>, Receiver<Packet>) =
-                                        unbounded();
-                                    pending_connections.lock().unwrap().push(Box::new(
-                                        transport::ServerConnection::new(
-                                            task_pool.clone(),
-                                            packet_rx,
-                                            server_socket.get_sender(),
-                                            address,
-                                        ),
-                                    ));
-                                    server_channels.insert(address, packet_tx);
-                                }
+                        let needs_new_channel = match server_channels
+                            .read()
+                            .expect("server channels lock is poisoned")
+                            .get(&address)
+                            .map(|channel| {
+                                channel.send(Ok(Packet::copy_from_slice(packet.payload())))
+                            }) {
+                            Some(Ok(())) => false,
+                            Some(Err(error)) => {
+                                log::error!("Server Send Error: {}", error);
+                                // If we can't send to a channel, it's disconnected.
+                                // We need to re-create the channel and re-try sending the message.
+                                true
                             }
-                            Err(err) => {
-                                log::error!("Error locking server channels: {}", err);
-                            }
+                            // This is a new connection, so we need to create a channel.
+                            None => true,
+                        };
+
+                        if !needs_new_channel {
+                            continue;
                         }
 
-                        match server_channels
-                            .read()
-                            .unwrap()
-                            .get(&address)
-                            .unwrap()
-                            .send(Packet::copy_from_slice(packet.payload()))
-                        {
-                            Ok(()) => {}
+                        // We try to do a write lock only in case when a channel doesn't exist or
+                        // has to be re-created. Trying to acquire a channel even for new
+                        // connections is kind of a positive prediction to avoid doing a write
+                        // lock.
+                        let mut server_channels = server_channels
+                            .write()
+                            .expect("server channels lock is poisoned");
+                        let (packet_tx, packet_rx): (
+                            Sender<Result<Packet, NetworkError>>,
+                            Receiver<Result<Packet, NetworkError>>,
+                        ) = unbounded();
+                        match packet_tx.send(Ok(Packet::copy_from_slice(packet.payload()))) {
+                            Ok(()) => {
+                                // It makes sense to store the channel only if it's healthy.
+                                pending_connections.lock().unwrap().push(Box::new(
+                                    transport::ServerConnection::new(
+                                        task_pool.clone(),
+                                        packet_rx,
+                                        server_socket.get_sender(),
+                                        address,
+                                    ),
+                                ));
+                                server_channels.insert(address, packet_tx);
+                            }
                             Err(error) => {
-                                log::error!("Server Send Error: {}", error);
+                                // This branch is unlikely to get called the second time (after
+                                // re-creating a channel), but if for some strange reason it does,
+                                // we'll just lose the message this time.
+                                log::error!("Server Send Error (retry): {}", error);
                             }
                         }
                     }
@@ -229,7 +278,7 @@ impl NetworkResource {
         &mut self,
         handle: ConnectionHandle,
         payload: Packet,
-    ) -> Result<(), Box<dyn Error + Send>> {
+    ) -> Result<(), Box<dyn Error + Sync + Send + 'static>> {
         match self.connections.get_mut(&handle) {
             Some(connection) => connection.send(payload),
             None => Err(Box::new(std::io::Error::new(
@@ -338,7 +387,10 @@ pub fn receive_packets(
                             }
                             Err(err) => {
                                 log::error!("Channel Incoming Error: {}", err);
-                                // FIXME:error_events.send(error);
+                                network_events.send(NetworkEvent::Error(
+                                    *handle,
+                                    NetworkError::TurbulenceChannelError(err),
+                                ));
                             }
                         }
                     } else {
@@ -347,8 +399,8 @@ pub fn receive_packets(
                     }
                 }
                 Err(err) => {
-                    log::error!("Receive Error: {}", err);
-                    // FIXME:error_events.send(error);
+                    log::error!("Receive Error: {:?}", err);
+                    network_events.send(NetworkEvent::Error(*handle, err));
                 }
             }
         }

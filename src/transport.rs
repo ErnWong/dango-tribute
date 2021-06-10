@@ -22,19 +22,22 @@ use futures_lite::future::block_on;
 
 use futures_lite::StreamExt;
 
-use super::channels::{SimpleBufferPool, TaskPoolRuntime};
+use super::{
+    channels::{SimpleBufferPool, TaskPoolRuntime},
+    NetworkError,
+};
 
 pub type Packet = Bytes;
-type MultiplexedPacket = MuxPacket<<BufferPacketPool<SimpleBufferPool> as PacketPool>::Packet>;
+pub type MultiplexedPacket = MuxPacket<<BufferPacketPool<SimpleBufferPool> as PacketPool>::Packet>;
 pub type ConnectionChannelsBuilder =
     MessageChannelsBuilder<TaskPoolRuntime, MuxPacketPool<BufferPacketPool<SimpleBufferPool>>>;
 
 pub trait Connection: Send + Sync {
     fn remote_address(&self) -> Option<SocketAddr>;
 
-    fn send(&mut self, payload: Packet) -> Result<(), Box<dyn Error + Send>>;
+    fn send(&mut self, payload: Packet) -> Result<(), Box<dyn Error + Sync + Send>>;
 
-    fn receive(&mut self) -> Option<Result<Packet, Box<dyn Error + Send>>>;
+    fn receive(&mut self) -> Option<Result<Packet, NetworkError>>;
 
     fn build_channels(
         &mut self,
@@ -52,12 +55,13 @@ pub trait Connection: Send + Sync {
 pub struct ServerConnection {
     task_pool: TaskPool,
 
-    packet_rx: crossbeam_channel::Receiver<Packet>,
+    packet_rx: crossbeam_channel::Receiver<Result<Packet, NetworkError>>,
     sender: Option<ServerSender>,
     client_address: SocketAddr,
 
     channels: Option<MessageChannels>,
     channels_rx: Option<IncomingMultiplexedPackets<MultiplexedPacket>>,
+    #[cfg(not(target_arch = "wasm32"))]
     channels_task: Option<Task<()>>,
 }
 
@@ -65,7 +69,7 @@ pub struct ServerConnection {
 impl ServerConnection {
     pub fn new(
         task_pool: TaskPool,
-        packet_rx: crossbeam_channel::Receiver<Packet>,
+        packet_rx: crossbeam_channel::Receiver<Result<Packet, NetworkError>>,
         sender: ServerSender,
         client_address: SocketAddr,
     ) -> Self {
@@ -87,7 +91,7 @@ impl Connection for ServerConnection {
         Some(self.client_address)
     }
 
-    fn send(&mut self, payload: Packet) -> Result<(), Box<dyn Error + Send>> {
+    fn send(&mut self, payload: Packet) -> Result<(), Box<dyn Error + Sync + Send>> {
         block_on(
             self.sender
                 .as_mut()
@@ -96,12 +100,14 @@ impl Connection for ServerConnection {
         )
     }
 
-    fn receive(&mut self) -> Option<Result<Packet, Box<dyn Error + Send>>> {
+    fn receive(&mut self) -> Option<Result<Packet, NetworkError>> {
         match self.packet_rx.try_recv() {
-            Ok(payload) => Some(Ok(payload)),
+            Ok(payload) => Some(payload),
             Err(error) => match error {
                 crossbeam_channel::TryRecvError::Empty => None,
-                err => Some(Err(Box::new(err))),
+                crossbeam_channel::TryRecvError::Disconnected => {
+                    Some(Err(NetworkError::Disconnected))
+                }
             },
         }
     }
@@ -177,20 +183,17 @@ impl Connection for ClientConnection {
         None
     }
 
-    fn send(&mut self, payload: Packet) -> Result<(), Box<dyn Error + Send>> {
+    fn send(&mut self, payload: Packet) -> Result<(), Box<dyn Error + Sync + Send>> {
         self.sender
             .as_mut()
             .unwrap()
             .send(ClientPacket::new(payload.to_vec()))
     }
 
-    fn receive(&mut self) -> Option<Result<Packet, Box<dyn Error + Send>>> {
+    fn receive(&mut self) -> Option<Result<Packet, NetworkError>> {
         match self.socket.receive() {
-            Ok(event) => match event {
-                Some(packet) => Some(Ok(Packet::copy_from_slice(packet.payload()))),
-                None => None,
-            },
-            Err(err) => Some(Err(Box::new(err))),
+            Ok(event) => event.map(|packet| Ok(Packet::copy_from_slice(packet.payload()))),
+            Err(err) => Some(Err(NetworkError::IoError(Box::new(err)))),
         }
     }
 
@@ -241,5 +244,6 @@ impl Connection for ClientConnection {
 
 #[cfg(target_arch = "wasm32")]
 unsafe impl Send for ClientConnection {}
+
 #[cfg(target_arch = "wasm32")]
 unsafe impl Sync for ClientConnection {}
