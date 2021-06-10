@@ -7,7 +7,7 @@ pub enum NaiaClientSocketError {
     /// A simple error message
     Message(String),
     /// A wrapped error from another library/codebase
-    Wrapped(Box<dyn Error + Send>),
+    Wrapped(Box<dyn Error + Send + Sync>),
 }
 
 impl fmt::Display for NaiaClientSocketError {

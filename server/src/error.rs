@@ -5,7 +5,7 @@ use std::{error::Error, fmt, net::SocketAddr};
 #[derive(Debug)]
 pub enum NaiaServerSocketError {
     /// A wrapped error from another library/codebase
-    Wrapped(Box<dyn Error>),
+    Wrapped(Box<dyn Error + Send + Sync>),
     /// An error indicating an inability to send to the given address
     SendError(SocketAddr),
 }

@@ -11,7 +11,7 @@ use wasm_bindgen::{prelude::*, JsCast, JsValue};
 use web_sys::{
     ErrorEvent, MessageEvent, ProgressEvent, RtcConfiguration, RtcDataChannel, RtcDataChannelInit,
     RtcDataChannelType, RtcIceCandidate, RtcIceCandidateInit, RtcPeerConnection, RtcSdpType,
-    RtcSessionDescription, RtcSessionDescriptionInit, XmlHttpRequest,
+    RtcSessionDescriptionInit, XmlHttpRequest,
 };
 
 #[derive(Deserialize, Debug, Clone)]
@@ -49,22 +49,14 @@ pub fn webrtc_initialize(
 ) -> RtcDataChannel {
     let server_url_str = format!("http://{}/new_rtc_session", socket_address);
 
-    let mut peer_config: RtcConfiguration = RtcConfiguration::new();
-    let ice_server_config = IceServerConfig {
-        urls: ["stun:stun.l.google.com:19302".to_string()],
-    };
-    let ice_server_config_list = [ice_server_config];
-
-    peer_config.ice_servers(&JsValue::from_serde(&ice_server_config_list).unwrap());
-
-    let peer: RtcPeerConnection = RtcPeerConnection::new_with_configuration(&peer_config).unwrap();
+    let peer: RtcPeerConnection = RtcPeerConnection::new().unwrap();
 
     let mut data_channel_config: RtcDataChannelInit = RtcDataChannelInit::new();
     data_channel_config.ordered(false);
     data_channel_config.max_retransmits(0);
 
     let channel: RtcDataChannel =
-        peer.create_data_channel_with_data_channel_dict("webudp", &data_channel_config);
+        peer.create_data_channel_with_data_channel_dict("data", &data_channel_config);
     channel.set_binary_type(RtcDataChannelType::Arraybuffer);
 
     let cloned_channel = channel.clone();
@@ -101,7 +93,7 @@ pub fn webrtc_initialize(
     let peer_clone = peer.clone();
     let server_url_msg = Ref::new(server_url_str);
     let peer_offer_func: Box<dyn FnMut(JsValue)> = Box::new(move |e: JsValue| {
-        let session_description = e.dyn_into::<RtcSessionDescription>().unwrap();
+        let session_description = e.into();
         let peer_clone_2 = peer_clone.clone();
         let server_url_msg_clone = server_url_msg.clone();
         let peer_desc_func: Box<dyn FnMut(JsValue)> = Box::new(move |_: JsValue| {
@@ -198,11 +190,8 @@ pub fn webrtc_initialize(
         });
         let peer_desc_callback = Closure::wrap(peer_desc_func);
 
-        let mut session_description_init: RtcSessionDescriptionInit =
-            RtcSessionDescriptionInit::new(session_description.type_());
-        session_description_init.sdp(session_description.sdp().as_str());
         peer_clone
-            .set_local_description(&session_description_init)
+            .set_local_description(&session_description)
             .then(&peer_desc_callback);
         peer_desc_callback.forget();
     });
