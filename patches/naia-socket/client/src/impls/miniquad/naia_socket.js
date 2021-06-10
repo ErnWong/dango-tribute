@@ -24,15 +24,11 @@ const naia_socket = {
     connect: function (server_socket_address) {
         let _this = this;
         let server_socket_address_string = naia_socket.get_js_object(server_socket_address);
-        let ADDRESS = "http://" + server_socket_address_string + "/new_rtc_session";
+        let SESSION_ADDRESS = "http://" + server_socket_address_string + "/new_rtc_session";
 
-        let peer = new RTCPeerConnection({
-            iceServers: [{
-                urls: ["stun:stun.l.google.com:19302"]
-            }]
-        });
+        let peer = new RTCPeerConnection(null);
 
-        this.channel = peer.createDataChannel("webudp", {
+        this.channel = peer.createDataChannel("data", {
             ordered: false,
             maxRetransmits: 0
         });
@@ -50,19 +46,11 @@ const naia_socket = {
             _this.error("data channel error", evt.message);
         };
 
-        peer.onicecandidate = function(evt) {
-            if (evt.candidate) {
-                //console.log("received ice candidate", evt.candidate);
-            } else {
-                //console.log("all local candidates received");
-            }
-        };
-
         peer.createOffer().then(function(offer) {
             return peer.setLocalDescription(offer);
         }).then(function() {
             let request = new XMLHttpRequest();
-            request.open("POST", ADDRESS);
+            request.open("POST", SESSION_ADDRESS);
             request.onload = function() {
                 if (request.status === 200) {
                     let response = JSON.parse(request.responseText);

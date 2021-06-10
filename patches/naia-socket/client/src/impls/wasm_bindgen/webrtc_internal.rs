@@ -66,7 +66,7 @@ pub fn webrtc_initialize(
     data_channel_config.id(0);
 
     let channel: RtcDataChannel =
-        peer.create_data_channel_with_data_channel_dict("webudp", &data_channel_config);
+        peer.create_data_channel_with_data_channel_dict("data", &data_channel_config);
     channel.set_binary_type(RtcDataChannelType::Arraybuffer);
 
     let cloned_channel = channel.clone();
@@ -195,9 +195,6 @@ pub fn webrtc_initialize(
         });
         let peer_desc_callback = Closure::wrap(peer_desc_func);
 
-        let mut session_description_init: RtcSessionDescriptionInit =
-            RtcSessionDescriptionInit::new(RtcSdpType::Offer);
-        session_description_init.sdp(&sdp_string);
         peer_clone
             .set_local_description(&session_description_init)
             .then(&peer_desc_callback);

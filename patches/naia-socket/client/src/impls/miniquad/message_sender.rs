@@ -15,7 +15,7 @@ impl MessageSender {
     }
 
     /// Send a Packet to the Server
-    pub fn send(&mut self, packet: Packet) -> Result<(), Box<dyn Error + Send>> {
+    pub fn send(&mut self, packet: Packet) -> Result<(), Box<dyn Error + Send + Sync>> {
         unsafe {
             let payload: &[u8] = packet.payload();
             let ptr = payload.as_ptr();

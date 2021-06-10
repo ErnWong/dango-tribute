@@ -20,7 +20,7 @@ impl MessageSender {
     }
 
     /// Send a Packet to a client
-    pub async fn send(&mut self, packet: Packet) -> Result<(), Box<dyn Error + Send>> {
+    pub async fn send(&mut self, packet: Packet) -> Result<(), Box<dyn Error + Send + Sync>> {
         match self.internal.send(packet).await {
             Ok(content) => Ok(content),
             Err(error) => {

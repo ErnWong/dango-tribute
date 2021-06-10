@@ -1,5 +1,6 @@
-use miniquad::info;
 use std::net::SocketAddr;
+
+use miniquad::info;
 
 use naia_client_socket::{
     ClientSocket, ClientSocketTrait, LinkConditionerConfig, MessageSender, Packet,
@@ -7,10 +8,6 @@ use naia_client_socket::{
 
 const PING_MSG: &str = "ping";
 const PONG_MSG: &str = "pong";
-
-const SERVER_PORT: u16 = 14191;
-
-use std::net::IpAddr;
 
 pub struct App {
     client_socket: Box<dyn ClientSocketTrait>,
@@ -29,12 +26,12 @@ impl App {
         info!("Naia Client Socket Example Started");
 
         // Put your Server's IP Address here!, can't easily find this automatically from the browser
-        let server_ip_address: IpAddr = "127.0.0.1"
+        // Note: a 127.0.0.1 IP address will not function correctly on Firefox
+        let server_ip_address: SocketAddr = "127.0.0.1:14191"
             .parse()
             .expect("couldn't parse input IP address");
-        let server_socket_address = SocketAddr::new(server_ip_address, SERVER_PORT);
 
-        let mut client_socket = ClientSocket::connect(server_socket_address)
+        let mut client_socket = ClientSocket::connect(server_ip_address)
             .with_link_conditioner(&LinkConditionerConfig::good_condition());
         let mut message_sender = client_socket.get_sender();
 

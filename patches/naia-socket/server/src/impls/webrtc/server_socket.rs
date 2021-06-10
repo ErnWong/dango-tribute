@@ -1,7 +1,4 @@
-use std::{
-    io::Error as IoError,
-    net::{IpAddr, SocketAddr, TcpListener},
-};
+use std::{io::Error as IoError, net::SocketAddr};
 
 use async_trait::async_trait;
 
@@ -34,15 +31,14 @@ pub struct ServerSocket {
 
 impl ServerSocket {
     /// Returns a new ServerSocket, listening at the given socket address
-    pub async fn listen(socket_address: SocketAddr) -> Box<dyn ServerSocketTrait> {
-        let webrtc_listen_ip: IpAddr = socket_address.ip();
-        let webrtc_listen_port =
-            get_available_port(webrtc_listen_ip.to_string().as_str()).expect("no available port");
-        let webrtc_listen_addr = SocketAddr::new(webrtc_listen_ip, webrtc_listen_port);
-
+    pub async fn listen(
+        session_listen_addr: SocketAddr,
+        webrtc_listen_addr: SocketAddr,
+        public_webrtc_addr: SocketAddr,
+    ) -> Box<dyn ServerSocketTrait> {
         let (to_client_sender, to_client_receiver) = mpsc::channel(CLIENT_CHANNEL_SIZE);
 
-        let rtc_server = RtcServer::new(webrtc_listen_addr).await;
+        let rtc_server = RtcServer::new(webrtc_listen_addr, public_webrtc_addr).await;
 
         let socket = ServerSocket {
             rtc_server,
@@ -50,7 +46,7 @@ impl ServerSocket {
             to_client_receiver,
         };
 
-        start_session_server(socket_address, socket.rtc_server.session_endpoint());
+        start_session_server(session_listen_addr, socket.rtc_server.session_endpoint());
 
         Box::new(socket)
     }
@@ -131,24 +127,13 @@ impl ServerSocketTrait for ServerSocket {
     }
 }
 
-fn get_available_port(ip: &str) -> Option<u16> {
-    (8000..9000).find(|port| port_is_available(ip, *port))
-}
-
-fn port_is_available(ip: &str, port: u16) -> bool {
-    match TcpListener::bind((ip, port)) {
-        Ok(_) => true,
-        Err(_) => false,
-    }
-}
-
 struct RtcServer {
     inner: InnerRtcServer,
 }
 
 impl RtcServer {
-    pub async fn new(address: SocketAddr) -> RtcServer {
-        let inner = InnerRtcServer::new(address, address)
+    pub async fn new(listen_addr: SocketAddr, public_address: SocketAddr) -> RtcServer {
+        let inner = InnerRtcServer::new(listen_addr, public_address)
             .await
             .expect("could not start RTC server");
 

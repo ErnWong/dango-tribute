@@ -19,7 +19,7 @@ impl MessageSender {
     }
 
     /// Send a Packet to the Server
-    pub fn send(&mut self, packet: Packet) -> Result<(), Box<dyn Error + Send>> {
+    pub fn send(&mut self, packet: Packet) -> Result<(), Box<dyn Error + Send + Sync>> {
         //send it
         if let Err(err) = self
             .socket

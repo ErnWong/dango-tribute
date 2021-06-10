@@ -27,8 +27,12 @@ pub struct ServerSocket {
 
 impl ServerSocket {
     /// Returns a new ServerSocket, listening at the given socket address
-    pub async fn listen(socket_address: SocketAddr) -> Box<dyn ServerSocketTrait> {
-        let socket = Async::new(UdpSocket::bind(&socket_address).unwrap()).unwrap();
+    pub async fn listen(
+        session_listen_addr: SocketAddr,
+        _webrtc_listen_addr: SocketAddr,
+        _public_webrtc_addr: SocketAddr,
+    ) -> Box<dyn ServerSocketTrait> {
+        let socket = Async::new(UdpSocket::bind(&session_listen_addr).unwrap()).unwrap();
 
         let (to_client_sender, to_client_receiver) = mpsc::channel(CLIENT_CHANNEL_SIZE);
 

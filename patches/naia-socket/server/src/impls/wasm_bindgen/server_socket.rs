@@ -139,7 +139,7 @@ impl ServerSocket {
 
                         let channel: RtcDataChannel = peer
                             .create_data_channel_with_data_channel_dict(
-                                "webudp",
+                                "data",
                                 &data_channel_config,
                             );
                         channel.set_binary_type(RtcDataChannelType::Arraybuffer);
