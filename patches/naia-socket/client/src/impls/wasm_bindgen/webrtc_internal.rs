@@ -195,6 +195,10 @@ pub fn webrtc_initialize(
         });
         let peer_desc_callback = Closure::wrap(peer_desc_func);
 
+        let mut session_description_init: RtcSessionDescriptionInit =
+            RtcSessionDescriptionInit::new(RtcSdpType::Offer);
+        session_description_init.sdp(&sdp_string);
+
         peer_clone
             .set_local_description(&session_description_init)
             .then(&peer_desc_callback);
