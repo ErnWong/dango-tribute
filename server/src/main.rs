@@ -102,7 +102,7 @@ fn debug_window_setup(mut commands: Commands) {
         .insert(TransformTrackingFollower);
 }
 
-fn show_shareable_url_system(network_events: EventReader<NetworkEvent>) {
+fn show_shareable_url_system(mut network_events: EventReader<NetworkEvent>) {
     for network_event in network_events.iter() {
         if let NetworkEvent::Hosted(endpoint_id) = network_event {
             info!("Found endpoint id");
