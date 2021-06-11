@@ -46,7 +46,7 @@ bevy_webgl2 = {version = "0.5.2", optional = true}
 bevy_web_fullscreen = {git = "https://github.com/ostwilkens/bevy_web_fullscreen", rev = "b363df1ee60f948e99dbf5ad71d489066d80b052"}
 bevy_prototype_frameshader = {path = "../crates/bevy_prototype_frameshader"}
 bevy_prototype_transform_tracker = {path = "../crates/bevy_prototype_transform_tracker"}
-crystalorb-bevy-networking-turbulence = {version = "0.2.0", default-features = false}
+crystalorb-bevy-networking-turbulence = {version = "0.2.1", default-features = false}
 rand = "0.8.3"
 winit = "0.24.0"
 wasm-bindgen = "0.2.45"

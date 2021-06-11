@@ -2270,9 +2270,9 @@ dependencies = [
 
 [[package]]
 name = "crystalorb"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "579db1f044a2053655809992483db3c70ca043913ebb4fa473075f940d06496c"
+checksum = "35883ee7cc175baa745800882e3d3407a833bbc410f21bd422c342555abe8f58"
 dependencies = [
  "serde",
  "take_mut",
@@ -2281,9 +2281,9 @@ dependencies = [
 
 [[package]]
 name = "crystalorb-bevy-networking-turbulence"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8330264cb904c4ce1ffa40c288f3d2511fe90367ea848caa5093390dc136f22d"
+checksum = "a15388b1f79d1ab6670447215affc839cf97ef61a17ed3716947a126793f7465"
 dependencies = [
  "bevy_app 0.5.0",
  "bevy_core 0.5.0",
