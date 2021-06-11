@@ -75,8 +75,11 @@ impl BlinkingEyes {
             let mesh = meshes.get_mut(eye_mesh_handle).unwrap();
             mesh.set_indices(Some(Indices::U32(stroke_geometry.indices.clone())));
             mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, stroke_geometry.vertices.clone());
-            mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0; 3]; outline_vertex_count]);
-            mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0; 2]; outline_vertex_count]);
+            mesh.set_attribute(
+                Mesh::ATTRIBUTE_NORMAL,
+                vec![[0.0, 0.0, 1.0]; outline_vertex_count],
+            );
+            mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0; 2]; outline_vertex_count]);
         }
     }
 }

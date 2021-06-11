@@ -222,8 +222,8 @@ fn sync_from_state(
         ]
         .into();
         shadow_mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, shadow_vertices);
-        shadow_mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0; 3]; 9]);
-        shadow_mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0; 3]; 9]);
+        shadow_mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 1.0, 0.0]; 9]);
+        shadow_mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0; 3]; 9]);
 
         let mesh_handle = meshes.add(mesh);
         let outline_mesh_handle = OutlineMesh(meshes.add(outline_mesh));
@@ -515,12 +515,15 @@ fn update_mesh(
             let outline_mesh = meshes.get_mut(outline_mesh_handle).unwrap();
             outline_mesh.set_indices(Some(Indices::U32(stroke_geometry.indices)));
             outline_mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, stroke_geometry.vertices);
-            outline_mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0; 3]; outline_vertex_count]);
-            outline_mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0; 2]; outline_vertex_count]);
+            outline_mesh.set_attribute(
+                Mesh::ATTRIBUTE_NORMAL,
+                vec![[0.0, 0.0, 1.0]; outline_vertex_count],
+            );
+            outline_mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0; 2]; outline_vertex_count]);
         }
     }
 
     let mesh = meshes.get_mut(mesh_handle).unwrap();
-    mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0; 3]; vertex_count]);
-    mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0; 2]; vertex_count]);
+    mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 0.0, 1.0]; vertex_count]);
+    mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0; 2]; vertex_count]);
 }

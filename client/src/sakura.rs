@@ -54,8 +54,11 @@ pub fn spawn_sakura(
 
         let mut leaf_mesh = Mesh::new(PrimitiveTopology::TriangleList);
         leaf_mesh.set_indices(Some(Indices::U32(leaf_indices)));
-        leaf_mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0; 3]; leaf_vertices.len()]);
-        leaf_mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0; 3]; leaf_vertices.len()]);
+        leaf_mesh.set_attribute(
+            Mesh::ATTRIBUTE_NORMAL,
+            vec![[0.0, 0.0, 1.0]; leaf_vertices.len()],
+        );
+        leaf_mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0; 2]; leaf_vertices.len()]);
         leaf_mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, leaf_vertices);
         let leaf_mesh_handle = meshes.add(leaf_mesh);
 
@@ -93,8 +96,8 @@ pub fn spawn_sakura(
     ]
     .into();
     trunk_mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, trunk_vertices);
-    trunk_mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0; 4]; 4]);
-    trunk_mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0; 4]; 4]);
+    trunk_mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 0.0, 1.0]; 4]);
+    trunk_mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0; 2]; 4]);
     let trunk_mesh_handle = meshes.add(trunk_mesh);
 
     for i in 0..((WIDTH * TRUNK_DENSITY) as i32) {
