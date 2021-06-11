@@ -166,12 +166,12 @@ fn setup(
 }
 
 fn test_load_progress_system(
-    audio_asset_events: EventReader<AssetEvent<AudioSource>>,
+    mut audio_asset_events: EventReader<AssetEvent<AudioSource>>,
     audio_sources: Res<Assets<AudioSource>>,
     shaders: Res<Assets<Shader>>,
-    shader_asset_events: EventReader<AssetEvent<Shader>>,
+    mut shader_asset_events: EventReader<AssetEvent<Shader>>,
     asset_server: ResMut<AssetServer>,
-    client_connection_events: EventReader<ClientConnectionEvent>,
+    mut client_connection_events: EventReader<ClientConnectionEvent>,
 ) {
     for _ in audio_asset_events.iter() {
         let mut all_audio_loaded = false;
@@ -234,7 +234,7 @@ fn show_load_complete(component_name: &str) {
         .expect("should be able to add a class to span");
 }
 
-fn update_status_system(client_connection_events: EventReader<ClientConnectionEvent>) {
+fn update_status_system(mut client_connection_events: EventReader<ClientConnectionEvent>) {
     for client_connection_event in client_connection_events.iter() {
         let class_name = match client_connection_event {
             ClientConnectionEvent::Connected(_) => "status-connected",
