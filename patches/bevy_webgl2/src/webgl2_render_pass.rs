@@ -192,20 +192,26 @@ impl<'a> RenderPass for WebGL2RenderPass<'a> {
     }
 
     fn draw(&mut self, vertices: Range<u32>, _instances: Range<u32>) {
-        let resources = &self.render_context.render_resource_context.resources;
-        let pipelines = resources.pipelines.read();
-        let pipeline_handle = self.pipeline.as_ref().unwrap();
-        let pipeline = pipelines.get(&pipeline_handle).unwrap();
+        // Block needed to prevent deadlock on pipelines.
+        let primitives = {
+            let resources = &self.render_context.render_resource_context.resources;
+            let pipelines = resources.pipelines.read();
+            let pipeline_handle = self.pipeline.as_ref().unwrap();
+            let pipeline = pipelines.get(&pipeline_handle).unwrap();
+            match pipeline.primitive.topology {
+                PrimitiveTopology::PointList => Gl::POINTS,
+                PrimitiveTopology::LineList => Gl::LINES,
+                PrimitiveTopology::LineStrip => Gl::LINE_STRIP,
+                PrimitiveTopology::TriangleList => Gl::TRIANGLES,
+                PrimitiveTopology::TriangleStrip => Gl::TRIANGLE_STRIP,
+            }
+        };
+        // See note on deadlock above. pipelines must be unlocked before calling
+        // setup_vao().
+        self.setup_vao();
+
         let ctx = &self.render_context;
         let gl = &ctx.device.get_context();
-        self.setup_vao();
-        let primitives = match pipeline.primitive.topology {
-            PrimitiveTopology::PointList => Gl::POINTS,
-            PrimitiveTopology::LineList => Gl::LINES,
-            PrimitiveTopology::LineStrip => Gl::LINE_STRIP,
-            PrimitiveTopology::TriangleList => Gl::TRIANGLES,
-            PrimitiveTopology::TriangleStrip => Gl::TRIANGLE_STRIP,
-        };
         gl_call!(gl.draw_arrays(
             primitives,
             vertices.start as i32,
