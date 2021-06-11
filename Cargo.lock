@@ -5247,7 +5247,6 @@ dependencies = [
 [[package]]
 name = "splines"
 version = "4.0.0"
-source = "git+https://github.com/phaazon/splines?branch=dependabot/cargo/master/nalgebra-gte-0.21-and-lt-0.28#e8f356d72d486ab95593e137f9eac2c3895729d2"
 dependencies = [
  "nalgebra",
 ]

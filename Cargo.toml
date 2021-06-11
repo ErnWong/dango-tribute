@@ -7,6 +7,7 @@ bevy_webgl2 = {path = "patches/bevy_webgl2"}
 naia-client-socket = {path = "patches/naia-socket/client"}
 naia-server-socket = {path = "patches/naia-socket/server"}
 nphysics2d = {path = "patches/nphysics/build/nphysics2d"}
+splines = {path = "patches/splines"}
 
 [patch."https://github.com/ostwilkens/bevy_web_fullscreen"]
 bevy_web_fullscreen = {path = "patches/bevy_web_fullscreen"}
