@@ -12,7 +12,10 @@ impl Plugin for TransformTrackingPlugin {
 
 pub fn transform_tracking_system(
     target_query: Query<(&TransformTrackingTarget, &Transform)>,
-    mut follower_query: Query<(&TransformTrackingFollower, &mut Transform)>,
+    mut follower_query: Query<
+        (&TransformTrackingFollower, &mut Transform),
+        Without<TransformTrackingTarget>,
+    >,
 ) {
     for (_, target_transform) in target_query.iter() {
         let target_pos = target_transform.translation;
