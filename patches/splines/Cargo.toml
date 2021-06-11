@@ -1,0 +1,49 @@
+[package]
+name = "splines"
+version = "4.0.0"
+license = "BSD-3-Clause"
+authors = ["Dimitri Sabadie <dimitri.sabadie@gmail.com>"]
+description = "Spline interpolation made easy"
+keywords = ["spline", "interpolation"]
+categories = ["science"]
+homepage = "https://github.com/phaazon/splines"
+repository = "https://github.com/phaazon/splines"
+documentation = "https://docs.rs/splines"
+readme = "README.md"
+
+edition = "2018"
+
+[badges]
+travis-ci = { repository = "phaazon/splines", branch = "master" }
+is-it-maintained-issue-resolution = { repository = "phaazon/splines" }
+is-it-maintained-open-issues = { repository = "phaazon/splines" }
+maintenance = { status = "actively-developed" }
+
+[features]
+default = ["std"]
+impl-cgmath = ["cgmath"]
+impl-glam = ["glam"]
+impl-nalgebra = ["nalgebra"]
+serialization = ["serde", "serde_derive"]
+std = []
+
+[dependencies]
+cgmath = { version = ">=0.17, <0.19", optional = true }
+glam = { version = ">=0.10, <0.13", optional = true }
+nalgebra = { version = ">=0.21, <0.25", optional = true }
+serde =  { version = "1", optional = true }
+serde_derive = { version = "1", optional = true }
+
+[dev-dependencies]
+float-cmp = ">=0.6, < 0.9"
+serde_json = "1"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[[example]]
+name = "hello-world"
+
+[[example]]
+name = "serialization"
+required-features = ["serialization"]
