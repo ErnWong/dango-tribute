@@ -67,7 +67,8 @@ fn main() {
         .add_system(show_shareable_url_system.system())
         .add_system(
             physics_multiplayer_systems::physics_multiplayer_server_spawn_despawn_system.system(),
-        );
+        )
+        .add_startup_system(setup.system());
 
     // if SHOW_DEBUG_WINDOW {
     //     app.add_system(
@@ -83,7 +84,7 @@ fn setup_hot_reloading(asset_server: ResMut<AssetServer>) {
     asset_server.watch_for_changes().unwrap();
 }
 
-fn setup(mut net: NetworkResource) {
+fn setup(mut net: ResMut<NetworkResource>) {
     let endpoint_url = "ws://dango-daikazoku.herokuapp.com/host".to_string();
     info!("Starting server - listening at {}", endpoint_url);
     net.listen(endpoint_url);
