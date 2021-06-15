@@ -1,0 +1,218 @@
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital@1&display=swap" rel="stylesheet">
+    <style>
+      body {
+        width: 100%;
+        height: calc(100% - 100px);
+        margin: 0;
+        overflow: hidden;
+        display: flex;
+        font-family: "EB Garamond", serif;
+      }
+      footer {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 3;
+        text-align: center;
+        font-style: italic;
+      }
+      kbd {
+        text-transform: uppercase;
+        background-color: #ffedbc;
+        box-shadow: 0 3px 0 #f1e6ce;
+        border-radius: 3px;
+        padding: 0.1em 0.5em;
+        font-size: 0.85em;
+        position: relative;
+        top: -0.2em;
+        color: #616161;
+        font-style: normal;
+      }
+      canvas {
+        touch-action: none;
+        margin: auto;
+        transition: all 0.5s 0.0s;
+        opacity: 1.0;
+        filter: blur(0);
+      }
+      canvas:focus {
+        outline: none;
+      }
+      canvas:not(:focus) {
+        transition: all 0.5s 0.5s;
+        opacity: 0.8;
+        filter: blur(4px);
+      }
+      #paused-screen {
+        content: '';
+        opacity: 0.0;
+        transition: opacity 0.5s 0.0s;
+        pointer-events: none;
+        text-transform: uppercase;
+        font-style: italic;
+        width: 100%;
+        position: absolute;
+        left: 0;
+        top: calc(50% - 50px);
+        margin-top: -1.5em;
+        font-size: 24px;
+        color: white;
+        z-index: 1;
+        text-shadow: 2px 2px 4px black;
+        text-align: center;
+      }
+      #paused-screen p:first-child {
+        font-size: 0.7em;
+        margin: 0.4em;
+      }
+      #paused-screen p:last-child {
+        margin: 0;
+      }
+      body:not(:focus-within) #paused-screen {
+        transition: opacity 0.5s 0.5s;
+        opacity: 1.0;
+      }
+      #loading-screen {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding-bottom: 100px;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        background-color: white;
+        z-index: 2;
+        font-style: italic;
+        opacity: 1.0;
+        transition: opacity 1.0s 0.5s;
+        pointer-events: none;
+      }
+      #loading-screen h1 {
+        font-size: 1.3em;
+        text-transform: uppercase;
+        font-weight: normal;
+      }
+      #loading-screen p {
+        opacity: 0.5;
+        transition: opacity 0.3s;
+        margin: 0.2em;
+      }
+      #loading-screen:not(.load-complete-wasm) #load-wasm {
+        opacity: 1.0;
+      }
+      #loading-screen.load-complete-wasm:not(.load-complete-shaders) #load-shaders {
+        opacity: 1.0;
+      }
+      #loading-screen.load-complete-wasm.load-complete-shaders:not(.load-complete-audio) #load-audio {
+        opacity: 1.0;
+      }
+      #loading-screen.load-complete-wasm.load-complete-shaders.load-complete-audio:not(.load-complete-connection) #load-connection {
+        opacity: 1.0;
+      }
+      #loading-screen p span {
+        opacity: 0.0;
+        transition: opacity 0.3s;
+        display: inline-block;
+        text-align: left;
+        position: relative;
+        left: 2em;
+        width: 2em;
+        margin-left: -2em;
+      }
+      #loading-screen.load-complete-wasm #load-wasm span {
+        opacity: 1.0;
+      }
+      #loading-screen.load-complete-shaders #load-shaders span {
+        opacity: 1.0;
+      }
+      #loading-screen.load-complete-audio #load-audio span {
+        opacity: 1.0;
+      }
+      #loading-screen.load-complete-connection #load-connection span {
+        opacity: 1.0;
+      }
+      #loading-screen.load-complete-wasm.load-complete-shaders.load-complete-audio.load-complete-connection {
+        opacity: 0.0;
+      }
+      #loading-screen #loading-text {
+        display: inline;
+      }
+      #loading-screen #loading-text span{
+        position: relative;
+        animation: 2s infinite forwards bounce-text;
+      }
+      @keyframes bounce-text {
+          0% { bottom: 0 }
+          5% { bottom: 0.2em }
+          10% { bottom: 0 }
+          35% { bottom: 0 }
+          40% { bottom: 0.2em }
+          45% { bottom: 0 }
+      }
+      #loading-screen #loading-complete-text {
+        display: none;
+      }
+      #loading-screen.load-complete-wasm.load-complete-shaders.load-complete-audio.load-complete-connection #loading-complete-text {
+        display: inline;
+      }
+      #loading-screen.load-complete-wasm.load-complete-shaders.load-complete-audio.load-complete-connection #loading-text {
+        display: none;
+      }
+      #status .status-connecting-text,
+      #status .status-connected-text,
+      #status .status-disconnected-text {
+        display: none;
+      }
+      #status.status-connecting .status-connecting-text,
+      #status.status-connected .status-connected-text,
+      #status.status-disconnected .status-disconnected-text {
+        display: inline;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="loading-screen">
+      <h1>
+        <span id="loading-text">
+          <span style="animation-delay: 0.1s">L</span><span style="animation-delay: 0.2s">o</span><span style="animation-delay: 0.3s">a</span><span style="animation-delay: 0.4s">d</span><span style="animation-delay: 0.5s">i</span><span style="animation-delay: 0.6s">n</span><span style="animation-delay: 0.7s">g</span>
+        </span>
+        <span id="loading-complete-text">Ready</span>
+      </h1>
+      <p id="load-wasm">Reading the dango recipe… <span>✓</span></p>
+      <p id="load-shaders">Opening the box of crayons… <span>✓</span></p>
+      <p id="load-audio">Winding the music box… <span>✓</span></p>
+      <p id="load-connection">Throwing the string telephone… <span>✓</span></p>
+    </div>
+    <div id="paused-screen">
+      <p>Paused</p>
+      <p>Click to resume</p>
+    </div>
+    <footer id="footer">
+      <p>
+        <span id="status" class="status-connecting">
+          <span class="status-connecting-text">Waiting the other end to catch the string telephone…</span>
+          <span class="status-connected-text">Hooray! You are connected.</span>
+          <span class="status-disconnected-text">Oh no! You got disconnected. Try refreshing the page?</span>
+        </span>
+        <br>
+        Hold down <kbd>shift</kbd> to roll around.<br>
+        Hacked together with Rust code. Visual concept inspired by Clannad.
+      </p>
+    </footer>
+  </body>
+  <script type="module">
+    import init from './target/wasm.js';
+    init();
+    document.body.addEventListener('click', () => {
+      document.getElementsByTagName('canvas')[0].focus();
+    });
+  </script>
+</html>

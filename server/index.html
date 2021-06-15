@@ -1,0 +1,45 @@
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital@1&display=swap" rel="stylesheet">
+    <style>
+      body {
+        margin: 0;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        font-family: "EB Garamond", serif;
+      }
+      body > iframe {
+        flex: 1;
+        border: none;
+      }
+      body > p {
+        text-align: center;
+        margin: 1em;
+        position: relative;
+        font-style: italic;
+      }
+      #join-url {
+        border: none;
+        width: 100%;
+        text-align: center;
+        font-style: italic;
+        font-family: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <p>
+      Others can join your server using this link:
+      <input readonly id="join-url" onclick="this.select()" placeholder="Generating link...">
+    </p>
+    <iframe title="game" id="client-iframe"></iframe>
+  </body>
+  <script type="module">
+    import init from './target/wasm.js';
+    init();
+  </script>
+</html>
