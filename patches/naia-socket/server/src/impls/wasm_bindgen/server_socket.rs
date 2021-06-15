@@ -11,16 +11,13 @@ use log::info;
 use std::{
     collections::HashMap,
     io::Error as IoError,
-    net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Mutex,
-    },
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    sync::atomic::{AtomicBool, Ordering},
 };
 
 use async_trait::async_trait;
 
-use futures_channel::{mpsc, oneshot};
+use futures_channel::mpsc;
 use futures_util::{pin_mut, select, FutureExt, StreamExt};
 
 use naia_socket_shared::LinkConditionerConfig;
@@ -39,7 +36,7 @@ use wasm_bindgen_futures::spawn_local;
 use web_sys::{
     ErrorEvent, MessageEvent, RtcConfiguration, RtcDataChannel, RtcDataChannelInit,
     RtcDataChannelType, RtcIceConnectionState, RtcPeerConnection, RtcPeerConnectionIceEvent,
-    RtcSdpType, RtcSessionDescription, RtcSessionDescriptionInit, WebSocket,
+    RtcSdpType, RtcSessionDescriptionInit, WebSocket,
 };
 
 use rand::Rng;
@@ -483,7 +480,7 @@ impl ServerSocketTrait for ServerSocket {
 
     fn with_link_conditioner(
         self: Box<Self>,
-        config: &LinkConditionerConfig,
+        _config: &LinkConditionerConfig,
     ) -> Box<dyn ServerSocketTrait> {
         unimplemented!();
         // Box::new(LinkConditioner::new(config, self))

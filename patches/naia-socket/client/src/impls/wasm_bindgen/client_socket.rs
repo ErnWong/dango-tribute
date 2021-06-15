@@ -1,7 +1,7 @@
 extern crate log;
 use log::info;
 
-use std::{collections::VecDeque, net::SocketAddr};
+use std::collections::VecDeque;
 
 use crate::{
     error::NaiaClientSocketError, link_conditioner::LinkConditioner, ClientSocketTrait,

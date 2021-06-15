@@ -169,7 +169,7 @@ impl NetworkResource {
             let sender = server_socket.get_sender();
 
             let task_pool_clone = task_pool.clone();
-            let receiver_task = task_pool.spawn(async move {
+            let _receiver_task = task_pool.spawn(async move {
                 loop {
                     match server_socket.receive().await {
                         NextEvent::ReceivedPacket(Ok(packet)) => {
@@ -392,7 +392,7 @@ pub fn receive_packets(
         .unwrap()
         .drain(..)
         .collect();
-    for mut disconnected_address in pending_disconnections {
+    for disconnected_address in pending_disconnections {
         log::info!("Finding handles to remove...");
         for (handle, connection) in net.connections.iter() {
             if connection.remote_address() == disconnected_address {

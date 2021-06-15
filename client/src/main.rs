@@ -6,7 +6,6 @@ use bevy::{
 };
 use bevy_kira_audio::{Audio, AudioPlugin, AudioSource};
 use bevy_web_fullscreen::FullViewportPlugin;
-use wasm_bindgen::prelude::*;
 use web_sys::UrlSearchParams;
 
 use bevy_prototype_frameshader::FrameshaderPlugin;
@@ -48,8 +47,9 @@ const FRAGMENT_SHADER_PATH: &str = "shaders/frameshader.wgpu.frag";
 fn main() {
     show_load_complete("wasm");
 
-    log::set_logger(&wasm_bindgen_console_logger::DEFAULT_LOGGER);
-    log::set_max_level(log::LevelFilter::Info);
+    if log::set_logger(&wasm_bindgen_console_logger::DEFAULT_LOGGER).is_ok() {
+        log::set_max_level(log::LevelFilter::Info);
+    }
 
     let mut app = App::build();
 
@@ -100,6 +100,8 @@ fn main() {
 
     // Order is important.
     // The above plugins provide resources for the plugins below.
+    // TODO: The above comment was from bevy 0.4 or earlier, and should be fixable with the new
+    // ECS.
 
     app.add_plugin(FrameTimeDiagnosticsPlugin::default())
         //.add_plugin(WasmPrintDiagnosticsPlugin::default())
@@ -132,8 +134,6 @@ fn setup(
     mut commands: Commands,
     asset_server: ResMut<AssetServer>,
     audio: Res<Audio>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
     mut net: ResMut<NetworkResource>,
 ) {
     let host_id = UrlSearchParams::new_with_str(
@@ -168,8 +168,8 @@ fn setup(
 fn test_load_progress_system(
     mut audio_asset_events: EventReader<AssetEvent<AudioSource>>,
     audio_sources: Res<Assets<AudioSource>>,
-    shaders: Res<Assets<Shader>>,
-    mut shader_asset_events: EventReader<AssetEvent<Shader>>,
+    _shaders: Res<Assets<Shader>>,
+    mut _shader_asset_events: EventReader<AssetEvent<Shader>>,
     asset_server: ResMut<AssetServer>,
     mut client_connection_events: EventReader<ClientConnectionEvent>,
 ) {
@@ -215,7 +215,7 @@ fn test_load_progress_system(
     show_load_complete("shaders");
 
     for client_connection_event in client_connection_events.iter() {
-        if let ClientConnectionEvent::Connected(client_id) = client_connection_event {
+        if let ClientConnectionEvent::Connected(_) = client_connection_event {
             show_load_complete("connection");
             break;
         }

@@ -124,33 +124,35 @@ pub fn spawn_sakura(
         });
     }
 
-    // let mut ground_mesh = Mesh::new(PrimitiveTopology::TriangleList);
-    // ground_mesh.set_indices(Some(Indices::U32([0, 1, 2, 2, 1, 3].into())));
+    if false {
+        let mut ground_mesh = Mesh::new(PrimitiveTopology::TriangleList);
+        ground_mesh.set_indices(Some(Indices::U32([0, 1, 2, 2, 1, 3].into())));
 
-    // // NOTE: We offset by -distance so it stays behind other objects in the scene.
-    // let ground_vertices: Vec<[f32; 3]> = [
-    //     [-WIDTH * 0.5, 0.0, GROUND_FAR + DISTANCE],
-    //     [WIDTH, 0.0, GROUND_FAR + DISTANCE],
-    //     [-WIDTH, 0.0, GROUND_CLOSE + DISTANCE],
-    //     [WIDTH, 0.0, GROUND_CLOSE + DISTANCE],
-    // ]
-    // .into();
+        // NOTE: We offset by -distance so it stays behind other objects in the scene.
+        let ground_vertices: Vec<[f32; 3]> = [
+            [-WIDTH * 0.5, 0.0, GROUND_FAR + DISTANCE],
+            [WIDTH, 0.0, GROUND_FAR + DISTANCE],
+            [-WIDTH, 0.0, GROUND_CLOSE + DISTANCE],
+            [WIDTH, 0.0, GROUND_CLOSE + DISTANCE],
+        ]
+        .into();
 
-    // ground_mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, ground_vertices);
-    // ground_mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0; 4]; 4]);
-    // ground_mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0; 4]; 4]);
-    // let ground_mesh_handle = meshes.add(ground_mesh);
-    // commands.spawn().insert_bundle(SpriteBundle {
-    //     sprite: Sprite {
-    //         size: Vec2::ONE,
-    //         ..Default::default()
-    //     },
-    //     mesh: ground_mesh_handle.clone(),
-    //     material: materials.add(Color::rgb(0.3, 0.3, 0.3).into()),
+        ground_mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, ground_vertices);
+        ground_mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0; 4]; 4]);
+        ground_mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0; 4]; 4]);
+        let ground_mesh_handle = meshes.add(ground_mesh);
+        commands.spawn().insert_bundle(SpriteBundle {
+            sprite: Sprite {
+                size: Vec2::ONE,
+                ..Default::default()
+            },
+            mesh: ground_mesh_handle.clone(),
+            material: materials.add(Color::rgb(0.3, 0.3, 0.3).into()),
 
-    //     // NOTE: We offset by -distance so it stays behind other objects in the scene.
-    //     transform: Transform::from_translation(Vec3::Z * (-DISTANCE)),
+            // NOTE: We offset by -distance so it stays behind other objects in the scene.
+            transform: Transform::from_translation(Vec3::Z * (-DISTANCE)),
 
-    //     ..Default::default()
-    // });
+            ..Default::default()
+        });
+    }
 }

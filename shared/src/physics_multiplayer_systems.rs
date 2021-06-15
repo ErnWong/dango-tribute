@@ -1,5 +1,5 @@
 use crate::{
-    blinking_eyes::{BlinkingEyes, EyeState},
+    blinking_eyes::BlinkingEyes,
     physics_multiplayer::{PhysicsCommand, PhysicsDisplayState, PhysicsWorld},
     player::{PlayerDisplayState, PlayerId},
 };
@@ -11,10 +11,6 @@ use bevy::{
         render_graph::base::MainPass,
     },
     sprite::SPRITE_PIPELINE_HANDLE,
-};
-use bevy_prototype_lyon::{
-    basic_shapes::{primitive, ShapeType},
-    TessellationMode,
 };
 use crystalorb_bevy_networking_turbulence::{
     bevy_networking_turbulence::{NetworkEvent, NetworkResource},
@@ -117,7 +113,7 @@ const SHADOW_Z_OFFSET: f32 = 1.0;
 
 pub fn physics_multiplayer_client_sync_system(
     mut player_map: Local<PlayerMap>,
-    mut commands: Commands,
+    commands: Commands,
     client: Res<Client<PhysicsWorld>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     meshes: ResMut<Assets<Mesh>>,
@@ -170,7 +166,7 @@ fn sync_from_state(
     materials: &mut Assets<ColorMaterial>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut query: Query<(&PlayerComponent, &Handle<Mesh>, &OutlineMesh, &Shadow)>,
-    mut transform_query: Query<&mut Transform>,
+    transform_query: Query<&mut Transform>,
     draw_mode: DrawMode,
 ) {
     let new_player_states = world_state.players();

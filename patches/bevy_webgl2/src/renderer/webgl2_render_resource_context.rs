@@ -20,7 +20,7 @@ use bevy::render::{
 use bevy::utils::HashMap;
 use bevy::window::Window;
 use parking_lot::RwLock;
-use std::{cell::Cell, ops::Range, sync::Arc};
+use std::{ops::Range, sync::Arc};
 
 #[derive(Clone)]
 pub struct WebGL2RenderResourceContext {

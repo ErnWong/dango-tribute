@@ -1,7 +1,7 @@
 extern crate log;
 use log::info;
 
-use std::{collections::VecDeque, net::SocketAddr};
+use std::collections::VecDeque;
 
 use crate::{error::NaiaClientSocketError, Packet};
 
@@ -11,9 +11,8 @@ use js_sys::Reflect;
 use wasm_bindgen::{prelude::*, JsCast, JsValue};
 use web_sys::{
     ErrorEvent, MessageEvent, ProgressEvent, RtcConfiguration, RtcDataChannel, RtcDataChannelInit,
-    RtcDataChannelType, RtcIceCandidate, RtcIceCandidateInit, RtcIceConnectionState,
-    RtcPeerConnection, RtcPeerConnectionIceEvent, RtcSdpType, RtcSessionDescription,
-    RtcSessionDescriptionInit, XmlHttpRequest,
+    RtcDataChannelType, RtcIceConnectionState, RtcPeerConnection, RtcPeerConnectionIceEvent,
+    RtcSdpType, RtcSessionDescriptionInit, XmlHttpRequest,
 };
 
 #[derive(Deserialize, Debug, Clone)]

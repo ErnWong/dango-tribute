@@ -9,14 +9,12 @@ use shared::{
     wasm_print_diagnostics_plugin::WasmPrintDiagnosticsPlugin,
 };
 use std::time::Duration;
-use wasm_bindgen::prelude::*;
 use web_sys::Url;
 
-// const SHOW_DEBUG_WINDOW: bool = false;
-
 fn main() {
-    log::set_logger(&wasm_bindgen_console_logger::DEFAULT_LOGGER);
-    log::set_max_level(log::LevelFilter::Info);
+    if log::set_logger(&wasm_bindgen_console_logger::DEFAULT_LOGGER).is_ok() {
+        log::set_max_level(log::LevelFilter::Info);
+    }
 
     let mut app = App::build();
 
@@ -61,6 +59,8 @@ fn main() {
 
     // Order is important.
     // The above plugins provide resources for the plugins below.
+    // TODO: The above comment was from bevy 0.4 or earlier, and should be fixable with the new
+    // ECS.
 
     app.add_plugin(FrameTimeDiagnosticsPlugin::default())
         //.add_plugin(WasmPrintDiagnosticsPlugin::default())
@@ -94,8 +94,8 @@ fn debug_window_setup(mut commands: Commands) {
     commands
         .spawn_bundle(OrthographicCameraBundle {
             transform: Transform {
-                scale: Vec3::one() / 60.0,
-                translation: Vec3::unit_z() * (1000.0 / 60.0 - 0.1),
+                scale: Vec3::ONE / 60.0,
+                translation: Vec3::Z * (1000.0 / 60.0 - 0.1),
                 rotation: Default::default(),
             },
             ..OrthographicCameraBundle::new_2d()
