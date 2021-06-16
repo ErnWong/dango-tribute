@@ -5033,7 +5033,6 @@ name = "shared"
 version = "0.1.0"
 dependencies = [
  "bevy 0.5.0",
- "bevy_prototype_lyon",
  "bevy_prototype_transform_tracker",
  "crystalorb-bevy-networking-turbulence",
  "lyon",

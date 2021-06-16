@@ -17,7 +17,6 @@ native = [
 
 [dependencies]
 bevy = {version = "0.5", default-features = false}
-bevy_prototype_lyon = {git = "https://github.com/Nilirad/bevy_prototype_lyon", branch = "master"}
 bevy_prototype_transform_tracker = {path = "../crates/bevy_prototype_transform_tracker"}
 crystalorb-bevy-networking-turbulence = {version = "0.2.1", default-features = false}
 nalgebra = {version = "0.27.1", features = ["serde-serialize"]}
