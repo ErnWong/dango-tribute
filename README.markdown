@@ -1,6 +1,6 @@
 <div align="center">
   <h1>dango</h1>
-  <p>Try it with your friends at<br/><a href="http://ernestwong.nz/dango-tribute/server/">http://ernestwong.nz/dango-tribute/server/</a><br/>It might not work :)</p>
+  <p>A little tribute to the <a href="https://www.youtube.com/watch?v=XXDxZ0YGWG8">Dango Daikazoku</a> from Clannad (by Key, KyoAni, et al)<br/>Try it with your friends at <a href="http://ernestwong.nz/dango-tribute/server/">http://ernestwong.nz/dango-tribute/server/</a><br/>It might not work :)</p>
 </div>
 
 https://user-images.githubusercontent.com/2609018/122154887-04850f00-ceba-11eb-8d83-581ff2405833.mp4
@@ -13,9 +13,7 @@ Just a little experiment made using the [Bevy game engine](https://bevyengine.or
 
 I don't take pride in the quality of this codebase. It is full of hacks, non-idiomatic Bevy code, and more inefficient hacks. Be warned when looking through the code.
 
-The "dango" in question is a tribute to the [Dango Daikazoku](https://www.youtube.com/watch?v=XXDxZ0YGWG8) from Clannad.
-
-## Will I continue working on this?
+## Will I continue to work on this?
 
 No. I don't want to ruin the image of Clannad any further. Let's keep this as a small experiment.
 
