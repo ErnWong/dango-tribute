@@ -1,5 +1,6 @@
 <div align="center">
   <h1>dango</h1>
+  <p>Try it with your friends at<br/><a href="http://ernestwong.nz/dango-tribute/server/">http://ernestwong.nz/dango-tribute/server/</a><br/>It might not work :)</p>
 </div>
 
 https://user-images.githubusercontent.com/2609018/122154887-04850f00-ceba-11eb-8d83-581ff2405833.mp4
@@ -47,9 +48,13 @@ The background and the hand-drawn look are done in a [post-processing shader](cl
 
 Yeah, sorry, the short background music was whipped up in a day or two, so it sounds kinda bad. I used [Dorico](https://en.wikipedia.org/wiki/Dorico) to write it up, and then performed it with [Spitfire Audio's BBC Symphony Orchestra Discover's](https://www.spitfireaudio.com/shop/a-z/bbc-symphony-orchestra-discover/) celesta instrument, recorded inside [Cakewalk](http://www.cakewalk.com/).
 
+The audio playback might not start in Chrome due to Chrome's [autoplay policies](https://developers.google.com/web/updates/2017/09/autoplay-policy-changes#webaudio), and at the moment, there might be some audio degradation at the start of the playback.
+
 ## Multiplayer
 
 The prediction/rollback logic was eventually refactored out into its own crate: [CrystalOrb](https://github.com/ErnWong/CrystalOrb). This networking code probably isn't efficient, and there are still some bugs that show up when the browser tab sleeps for too long.
+
+The player hosts the servers themselves, but it's still written in a server-client way, so it's like an inefficient version of peer-to-peer? The connections are established using WebRTC, with a WebSocket signalling server written in Rust using [Actix](https://actix.rs/). However, I haven't configured a TURN server, so many connections could fail. Trying to connect within a LAN might also have some issues, because web browser anonymize their IP addresses by using an mDNS address, but not all OSes support them.
 
 ## Patches
 
