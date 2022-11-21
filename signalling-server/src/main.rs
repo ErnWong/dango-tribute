@@ -11,8 +11,6 @@ use std::{
 };
 use tokio::sync::oneshot;
 
-mod test;
-
 const HOST_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const HOST_TIMEOUT: Duration = Duration::from_secs(20);
 
