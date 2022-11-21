@@ -1,4 +1,4 @@
-FROM lnl7/nix:2.3.7
+FROM nixpkgs/nix-flakes:nixos-21.11
 COPY . /app
 WORKDIR /app
 RUN nix build
