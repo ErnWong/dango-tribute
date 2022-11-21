@@ -1,4 +1,4 @@
-FROM nixpkgs/nix-flakes:nixos-21.11
+FROM nixpkgs/nix-flakes:nixos-22.05
 COPY . /app
 WORKDIR /app
 RUN nix build
