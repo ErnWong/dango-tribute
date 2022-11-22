@@ -4,7 +4,7 @@ WORKDIR /app
 RUN nix build
 
 RUN mkdir /app/nix-store-closure
-RUN for dependency in nix-store --query --requisites ./result-bin; do \
+RUN for dependency in $(nix-store --query --requisites ./result-bin); do \
         echo "Copying dependency $dependency"; \
         cp -R "$dependency" /app/nix-store-closure; \
     done
