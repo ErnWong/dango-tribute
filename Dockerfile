@@ -12,6 +12,6 @@ RUN for dependency in $(nix-store --query --requisites ./result-bin); do \
 FROM scratch
 WORKDIR /app
 COPY --from=builder /app/nix-store-closure /nix/store
-COPY --from=builder /app/result-bin /app
+COPY --from=builder /app/result-bin /app/result-bin
 
 CMD ["result-bin/bin/signalling-server"]
