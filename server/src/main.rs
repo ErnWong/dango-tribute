@@ -85,7 +85,7 @@ fn setup_hot_reloading(asset_server: ResMut<AssetServer>) {
 }
 
 fn setup(mut net: ResMut<NetworkResource>) {
-    let endpoint_url = "ws://dango-tribute.up.railway.app/host".to_string();
+    let endpoint_url = "wss://dango-tribute.up.railway.app/host".to_string();
     info!("Starting server - listening at {}", endpoint_url);
     net.listen(endpoint_url);
 }
