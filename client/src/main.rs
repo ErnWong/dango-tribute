@@ -146,7 +146,7 @@ fn setup(
     .expect("should parse valid search params")
     .get("join")
     .expect("should have host id");
-    let endpoint_url = format!("http://dango-tribute.up.railway.app/join/{}", host_id);
+    let endpoint_url = format!("https://dango-tribute.up.railway.app/join/{}", host_id);
     info!("Starting client - connecting to {}", endpoint_url);
     net.connect(endpoint_url);
 
